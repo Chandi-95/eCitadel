@@ -13,6 +13,8 @@ Defaults	authenticate
 Defaults	!visiblepw
 Defaults	always_set_home
 Defaults	match_group_by_gid
+Defaults  use_pty
+Defaults  timestamp_timeout=10
 # Host alias specification
 
 # User alias specification
