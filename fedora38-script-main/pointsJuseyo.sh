@@ -82,10 +82,10 @@ verify(){
 	rpm -qf $(rpm -Va 2>&1 | grep -vE '^$|prelink:' | sed 's|.* /|/|') | sort -u
 	dnf install -y firewalld
 	dnf install -y pam
+ 	dnf install -y pam_pwquality
+  	dnf install -y pam_faillock
 	dnf install -y sudo
 	dnf install -y firefox
- 	yum install -y policycoreutils selinux-policy selinux-policy-targeted libselinux-utils setroubleshoot-server setools setools-console mcstrans setroubleshoot-server
-  	dnf erase -y mcstrans
 }
 
 users(){
@@ -214,7 +214,8 @@ passPolicy(){
 	echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su
 	echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su-l
 	echo "password required pam_unix.so sha512 shadow nullok rounds=65536" >> /etc/pam.d/passwd
-
+	cat configs/password-auth > /etc/pam.d/password-auth
+ 	cat configs/system-auth > /etc/pam.d/system-auth
 	echo "Password policy has been set"
 	
 }
@@ -489,6 +490,9 @@ lastMinuteChecks()
 {
 	#soltuion: /boot/config-$(uname -r) should contain CONFIG_PAGE_TABLE_ISOLATION
 	#apt-get update && apt install linux-image-generic
+ 	update-crypto-policies --set DEFAULT
+  	echo "+VERS-ALL:-VERS-DTLS0.9:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-DTLS1.0" >> /etc/crypto-policies/back-ends/gnutls.config
+   	echo "include /etc/crypto-policies/back-ends/libreswan.config" >> /etc/ipsec.conf
 	dmesg | grep "Kernel/User page tables isolation: enabled" && echo "patched" || echo "unpatched"
 
 	cat /etc/default/grub | grep "selinux" && echo "check /etc/default/grub for selinux" || echo "/etc/default/grub does not disable selinux"
