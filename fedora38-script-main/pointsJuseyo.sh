@@ -58,7 +58,7 @@ saveLogs(){
 
 #DNS
 dns(){
-	hosts
+	# hosts // commented because it was breaking connections
 	systemctl restart NetworkManager
 }
 
