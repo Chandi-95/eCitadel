@@ -86,6 +86,13 @@ verify(){
   	dnf install -y pam_faillock
 	dnf install -y sudo
 	dnf install -y firefox
+ 	dnf install -y e2fsprogs
+  	chattr -ia /etc/passwd
+   	chattr -ia /etc/group
+    	chattr -ia /etc/shadow
+     	chattr -ia /etc/passwd-
+   	chattr -ia /etc/group-
+    	chattr -ia /etc/shadow-
 }
 
 users(){
