@@ -267,11 +267,11 @@ misc()
 	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
 	cat configs/environment > /etc/environment
 	cat configs/control-alt-delete.conf > /etc/init/control-alt-delete.conf
-	dnf install -y auditd > /dev/null
+	dnf install -y audit > /dev/null
 	auditctl -e 1
  	echo configs/auditd.conf > /etc/audit/auditd.conf
   	echo configs/audit.rules > /etc/audit/audit.rules
- 	sudo echo 0 | sudo tee /proc/sys/kernel/unprivileged_userns_clone
+ 	echo 0 > /proc/sys/kernel/unprivileged_userns_clone
 	cat configs/sysctl.conf > /etc/sysctl.conf
 	sysctl -ep
 	rm -f /usr/lib/gvfs/gvfs-trash
@@ -467,7 +467,7 @@ checkPackages()
 	dnf remove ldap-utils -y
 	dnf remove prelink -y
 	dnf remove rsh-client rsh-redone-client* rsh-server -y
-	dnf install selinux -y
+	sudo dnf install policycoreutils policycoreutils-python-utils selinux-policy selinux-policy-devel -y
 	systemctl start selinux
 }
 
@@ -501,7 +501,7 @@ mediaFiles()
 }
 lastMinuteChecks()
 {
-	yum install scap-security-guide # install and run scap compliance check
+	yum install scap-security-guide -y # install and run scap compliance check
  	oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cusp_fedora --results-arf arf.xml --report report.html --oval-results /usr/share/xml/scap/ssg/content/ssg-fedora-ds.xml
  	
 	dmesg | grep "Kernel/User page tables isolation: enabled" && echo "patched" || echo "unpatched"
