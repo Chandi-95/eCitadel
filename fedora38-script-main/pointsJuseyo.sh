@@ -84,6 +84,8 @@ verify(){
 	dnf install -y pam
 	dnf install -y sudo
 	dnf install -y firefox
+ 	yum install -y policycoreutils selinux-policy selinux-policy-targeted libselinux-utils setroubleshoot-server setools setools-console mcstrans setroubleshoot-server
+  	dnf erase -y mcstrans
 }
 
 users(){
