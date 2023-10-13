@@ -91,8 +91,7 @@ users(){
 	checkAuthorized
 	passwords
 	lockAll
-	rhosts
-	hostsEquiv
+	extensions
 	sudoers
 	passPolicy
 }
@@ -183,16 +182,15 @@ lockAll()
 	done;
 }
 
-rhosts()
+extensions()
 {
-	echo "deleting rhosts files"
+	echo "deleting rhosts, shosts, forward, netrc files"
 	find / -name ".rhosts" -exec rm -rf {} \;
-}
-
-hostsEquiv()
-{
-	echo "deleting hosts.equiv files"
-	find / -name "hosts.equiv" -exec rm -rf {} \;
+ 	find / -name "hosts.equiv" -exec rm -rf {} \;
+     	find / -iname '*.shosts' -delete
+    	find / -iname '*.shosts.equiv' -delete
+        find / -iname '*.forward' -delete
+    	find / -iname '*.netrc' -delete
 }
 
 sudoers(){
@@ -240,6 +238,7 @@ misc()
 	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
 	echo "tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0" >> /etc/fstab
 	echo "tmpfs /var/tmp tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
+ 	echo "proc /proc proc nosuid,nodev,noexec,hidepid=2,gid=proc 0 0" >> /etc/fstab
 	prelink -ua
 	dnf remove -y prelink
 	systemctl mask ctrl-alt-del.target
@@ -256,6 +255,7 @@ misc()
 	cat configs/control-alt-delete.conf > /etc/init/control-alt-delete.conf
 	dnf install -y auditd > /dev/null
 	auditctl -e 1
+ 	sudo echo 0 | sudo tee /proc/sys/kernel/unprivileged_userns_clone
 	cat configs/sysctl.conf > /etc/sysctl.conf
 	sysctl -ep
 	rm -f /usr/lib/gvfs/gvfs-trash
@@ -471,18 +471,16 @@ mediaFiles()
     find /home -name '*.png' -type f -delete
     find /home -name '*.jpg' -type f -delete
     find /home -name '*.jpeg' -type f -delete
-	find / -iname '*.m4b' -delete
-	find /home -iname '*.wav' -delete
-	find /home -iname '*.wma' -delete
-	find /home -iname '*.aac' -delete
-	find /home -iname '*.bmp' -delete
-	find /home -iname '*.img' -delete
-	find /home -iname '*.exe' -delete
-	find /home -iname '*.csv' -delete
-	find /home -iname '*.bat' -delete
-	find / -iname '*.xlsx' -delete
-	find / -iname '*.shosts' -delete
-	find / -iname '*.shosts.equiv' -delete
+    find / -iname '*.m4b' -delete
+    find /home -iname '*.wav' -delete
+    find /home -iname '*.wma' -delete
+    find /home -iname '*.aac' -delete
+    find /home -iname '*.bmp' -delete
+    find /home -iname '*.img' -delete
+    find /home -iname '*.exe' -delete
+    find /home -iname '*.csv' -delete
+    find /home -iname '*.bat' -delete
+    find / -iname '*.xlsx' -delete
 
 }
 lastMinuteChecks()
