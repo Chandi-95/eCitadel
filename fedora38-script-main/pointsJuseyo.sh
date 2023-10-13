@@ -13,6 +13,7 @@ unleashHell(){
 	misc
 	checkPackages
 	filePriv
+ 	comparison
 	mediaFiles
 	lastMinuteChecks
 }
@@ -471,6 +472,12 @@ checkPackages()
 	systemctl start selinux
 }
 
+comparison()
+# comparison script - credits to hal
+{
+	bash helperScripts/dircomp/getDirs.sh
+ 	bash helperScripts/dircomp/getDiff.sh
+}
 mediaFiles()
 {
     find / -name '*.mp3' -type f -delete
