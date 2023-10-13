@@ -269,6 +269,8 @@ misc()
 	cat configs/control-alt-delete.conf > /etc/init/control-alt-delete.conf
 	dnf install -y auditd > /dev/null
 	auditctl -e 1
+ 	echo configs/auditd.conf > /etc/audit/auditd.conf
+  	echo configs/audit.rules > /etc/audit/audit.rules
  	sudo echo 0 | sudo tee /proc/sys/kernel/unprivileged_userns_clone
 	cat configs/sysctl.conf > /etc/sysctl.conf
 	sysctl -ep
