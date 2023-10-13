@@ -177,7 +177,7 @@ passwords()
 	for user in $(cat users.txt); do
 		passwd -x 85 $user > /dev/null;
 		passwd -n 15 $user > /dev/null;
-		echo $user':Password1234!@#$' | chpasswd;
+		echo $user:'Password1234!@#$' | chpasswd;
 		chage --maxdays 15 --mindays 6 --warndays 7 --inactive 5 $user;
 	done;
 }
@@ -253,10 +253,14 @@ misc()
 	dnf remove -y prelink
 	systemctl mask ctrl-alt-del.target
 	systemctl daemon-reload
+	update-crypto-policies --set DEFAULT
+  	echo "+VERS-ALL:-VERS-DTLS0.9:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-DTLS1.0" >> /etc/crypto-policies/back-ends/gnutls.config
+   	echo "include /etc/crypto-policies/back-ends/libreswan.config" >> /etc/ipsec.conf
 	echo "tty1" > /etc/securetty
-	echo "TMOUT=300" >> /etc/profile
+	echo "TMOUT=900" >> /etc/profile
 	echo "readonly TMOUT" >> /etc/profile
 	echo "export TMOUT" >> /etc/profile
+ 	echo "declare -xr TMOUT=900" > /etc/profile.d/tmout.sh
 	#dont prune shit lol
 	echo "" > /etc/updatedb.conf
 	echo "blacklist usb-storage" >> /etc/modprobe.d/blacklist.conf
@@ -495,11 +499,9 @@ mediaFiles()
 }
 lastMinuteChecks()
 {
-	#soltuion: /boot/config-$(uname -r) should contain CONFIG_PAGE_TABLE_ISOLATION
-	#apt-get update && apt install linux-image-generic
- 	update-crypto-policies --set DEFAULT
-  	echo "+VERS-ALL:-VERS-DTLS0.9:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-DTLS1.0" >> /etc/crypto-policies/back-ends/gnutls.config
-   	echo "include /etc/crypto-policies/back-ends/libreswan.config" >> /etc/ipsec.conf
+	yum install scap-security-guide # install and run scap compliance check
+ 	oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_cusp_fedora --results-arf arf.xml --report report.html --oval-results /usr/share/xml/scap/ssg/content/ssg-fedora-ds.xml
+ 	
 	dmesg | grep "Kernel/User page tables isolation: enabled" && echo "patched" || echo "unpatched"
 
 	cat /etc/default/grub | grep "selinux" && echo "check /etc/default/grub for selinux" || echo "/etc/default/grub does not disable selinux"
