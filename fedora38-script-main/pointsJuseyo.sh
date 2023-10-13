@@ -82,8 +82,8 @@ verify(){
 	rpm -qf $(rpm -Va 2>&1 | grep -vE '^$|prelink:' | sed 's|.* /|/|') | sort -u
 	dnf install -y firewalld
 	dnf install -y pam
- 	dnf install -y pam_pwquality
-  	dnf install -y pam_faillock
+ 	dnf install -y libpam_pwquality
+  	dnf install -y libpam_faillock
 	dnf install -y sudo
 	dnf install -y firefox
  	dnf install -y e2fsprogs
@@ -461,8 +461,8 @@ checkPackages()
 	dnf remove ldap-utils -y
 	dnf remove prelink -y
 	dnf remove rsh-client rsh-redone-client* rsh-server -y
-	dnf install apparmor -y
-	systemctl start apparmor
+	dnf install selinux -y
+	systemctl start selinux
 }
 
 mediaFiles()
