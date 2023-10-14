@@ -24,16 +24,16 @@ compare_files() {
     done < "$current_file"
 
     # Calculate lines in $dir.txt not in $dir_base.txt
-    comm -23 <(sort "$current_file") <(sort "$base_file") > "${dir}_notin_${dir}_base.txt"
+    comm -23 <(sort "$current_file") <(sort "$base_file") > "helperScripts/dircomp/${dir}_notin_${dir}_base.txt"
 
     # Calculate lines in $dir_base.txt not in $dir.txt
-    comm -13 <(sort "$current_file") <(sort "$base_file") > "${dir}_base_notin_${dir}.txt"
+    comm -13 <(sort "$current_file") <(sort "$base_file") > "helperScripts/dircomp/${dir}_base_notin_${dir}.txt"
 }
 
 # Loop through directories and compare files
 for dir in "${directories[@]}"; do
-    base_file="${dir}_base.txt"
-    current_file="${dir}.txt"
+    base_file="helperScripts/dircomp/${dir}_base.txt"
+    current_file="helperScripts/dircomp/${dir}.txt"
 
     # Check if both files exist before comparing
     if [ -f "$base_file" ] && [ -f "$current_file" ]; then
