@@ -18,7 +18,7 @@ getDirs() {
 
 for dir in "${dirs[@]}"; do
     if [ -d "$dir" ]; then
-        out="${dir/\//}.txt"
+        out="helperScripts/dircomp/${dir/\//}.txt"
         echo "Processing Dir: $dir"
         getDirs "$dir" "$out"
         echo "Output saved to: $out"
