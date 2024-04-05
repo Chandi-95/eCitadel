@@ -138,6 +138,24 @@ Write-Host ""
 	}
 }
 
+Write-Host "Step5: Audit Groups"
+Write-Host 'Press any key to continue...';
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+Write-Host ""
 
+ if ($IsDC) {}
+ else{
+	foreach($group in get-localgroup | Where-Object Name -notlike "Users"){
+		foreach($member in Get-LocalGroupMember -Group $group.Name){
+			$prompt = "Should user " + $Member.Name + " be in " + $Group.Name + ": Y/n "
+			$yn = read-host $prompt
+			
+			if($yn -eq "n" -or $yn -eq "N"){
+				Remove-LocalGroupMember -Group $Group -Member $member
+				Write-Host "[INFO]" $member.Name " has been removed from " $group.Name
+			}
+		}
+	}
+ }
 
 #chandi fortnite
