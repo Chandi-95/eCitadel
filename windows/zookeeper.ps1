@@ -130,7 +130,7 @@ Write-Host ""
 	foreach ($LocalUser in $LocalUsers) {
 		if(-not($LocalUser.name -eq $me)){
 			Enable-LocalUser -Name $LocalUser.Name
-			$LocalUser | Set-LocalUser -PasswordNeverExpires $false -UserMayChangePassword $true -AccountNeverExpires -ChangePasswordAtLogon $true
+			$LocalUser | Set-LocalUser -PasswordNeverExpires $false -UserMayChangePassword $true -AccountNeverExpires
 			net user $LocalUser.Name $superSecretPassword | Out-Null
 			net user $LocalUser.Name /PASSWORDREQ:YES | Out-Null
 			Write-Host "[INFO]" $LocalUser.Name "secured"
