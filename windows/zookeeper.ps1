@@ -110,13 +110,52 @@ if ($IsDC) {
 }
 
 Write-Host "Step4: Permission remaining users"
+Write-Host "[Warning] This will reset all passwords (except yours) to Password-12345"
 Write-Host 'Press any key to continue...';
 $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
 Write-Host ""
+
+ if ($IsDC) {
+	$DomainUsers = Get-ADUser -filter *
+	foreach ($DomainUser in $DomainUsers) {
+		if(-not($DomainUser.name -eq $me)){
+			Enable-ADAccount -Name $DomainUser.Name
+			$DomainUser | Set-ADUser -AllowReversiblePasswordEncryption $false -ChangePasswordAtLogon $true -KerberosEncryptionType AES128,AES256 -PasswordNeverExpires $false -UserMayChangePassword $true -PasswordNotRequired $false
+			net user $DomainUser.Name $superSecretPassword
+			Write-Host "[INFO]" $DomainUser.Name "secured"
+		}
+	}
+} else {
+	$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
+	foreach ($LocalUser in $LocalUsers) {
+		if(-not($LocalUser.name -eq $me)){
+			Enable-LocalUser -Name $LocalUser.Name
+			$LocalUser | Set-LocalUser -PasswordNeverExpires $false -UserMayChangePassword $true -AccountNeverExpires -ChangePasswordAtLogon $true
+			net user $LocalUser.Name $superSecretPassword | Out-Null
+			net user $LocalUser.Name /PASSWORDREQ:YES | Out-Null
+			Write-Host "[INFO]" $LocalUser.Name "secured"
+		}
+	}
+}
 
 Write-Host "Step5: Audit Groups"
 Write-Host 'Press any key to continue...';
 $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
 Write-Host ""
+
+ if ($IsDC) {}
+ else{
+	foreach($group in get-localgroup){
+		foreach($member in Get-LocalGroupMember -Group $group.Name){
+			$prompt = "Should user " $Member.Name " be in " $Group.Name ": Y/n "
+			$yn = read-host $prompt
+			
+			if($yn -eq "n" -or $yn -eq "N"){
+				Remove-LocalGroupMember -Group $Group -Member $member
+				Write-Host "[INFO]" $member.Name " has been removed from " $group.Name
+			}
+		}
+	}
+ }
 
 #chandi fortnite
