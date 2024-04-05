@@ -91,6 +91,29 @@ if ($IsDC) {
 
 Write-Host "Step3: Create Missing Users"
 if ($IsDC) {
+	$DomainUsers = Get-ADUser -filter *
+	foreach ($User in $AllowUsers) {
+		if (-not($User.Name -in $DomainUsers)) {
+			New-ADUser -Name $User.Name
+			Write-Host "[INFO]" $User.Name "created"
+		}
+	}
+} else {
+	$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
+	foreach ($User in $AllowUsers) {
+		if (-not($User.Name -in $LocalUsers)){
+			New-LocalUser -Name $User.Name
+			Write-Host "[INFO]" $User.Name "created"
+		}
+	}
+}
+
+Write-Host "Step4: Permission remaining users"
+Write-Host 'Press any key to continue...';
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+Write-Host ""
+
+if ($IsDC) {
 	foreach ($User in $AllowUsers) {
 		New-ADUser -Name $User.Name
 		Write-Host "[INFO]" $User.Name "created"
@@ -102,5 +125,9 @@ if ($IsDC) {
 	}
 }
 
+Write-Host "Step5: Audit Groups"
+Write-Host 'Press any key to continue...';
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+Write-Host ""
 
 #chandi fortnite
