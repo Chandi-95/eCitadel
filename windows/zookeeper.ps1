@@ -89,5 +89,18 @@ if ($IsDC) {
 	}
 }
 
+Write-Host "Step3: Create Missing Users"
+if ($IsDC) {
+	foreach ($User in $AllowUsers) {
+		New-ADUser -Name $User.Name
+		Write-Host "[INFO]" $User.Name "created"
+	}
+} else {
+	foreach ($User in $AllowUsers) {
+		New-LocalUser -Name $User.Name
+		Write-Host "[INFO]" $User.Name "created"
+	}
+}
+
 
 #chandi fortnite
