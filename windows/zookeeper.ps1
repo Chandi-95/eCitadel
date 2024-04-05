@@ -6,11 +6,18 @@ Write-Host "Warning -- Run this script after all forensics or after you are sure
 Write-Host "this script will delete unauthorized users permantly, a snapshot might also be a good idea"
 
 $authorizedDir =  "C:\users\$me\Desktop\authorizedUsers.txt"
-Create-Item $authorizedDir
 
-Write-Host "Added a txt to the desktop. Copy paste the authorized users there, one per line"
-Write-Host -NoNewLine 'Press any key to continue...';
-$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+try {
+	New-Item $authorizedDir | Out-Null
+	
+	Write-Host "Added a txt to the desktop. Copy paste the authorized users there, one per line"
+	Write-Host 'Press any key to continue...';
+	$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+	Write-Host ""
+} catch {
+    Write-Host "Using existing file."
+}
+
 
 try {
     [string[]]$AllowUsers = Get-Content $authorizedDir
@@ -31,24 +38,56 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') {
 }
 
 Write-Host "Step1: Disable all users not on the list"
-Write-Host -NoNewLine 'Press any key to continue...';
+Write-Host 'Press any key to continue...';
 $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+Write-Host ""
 
 if ($IsDC) {
 	$DomainUsers = Get-ADUser -filter *
 	foreach ($DomainUser in $DomainUsers) {
-		if (-not $DomainUser.Name -in $UserList) {
+		if (-not($DomainUser.Name -in $AllowUsers)) {
 			Disable-ADAccount -Name $DomainUser.Name
 			Write-Host "[INFO]" $DomainUser.Name "disabled"
+		} 
+	}
+} else {
+	$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
+	foreach ($LocalUser in $LocalUsers) {
+		if (-not($LocalUser.Name -in $AllowUsers)) {
+			Disable-LocalUser -Name $LocalUser.Name
+			Write-Host "[INFO]" $LocalUser.Name "disabled"
 		}
-        else {
-			$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
-			foreach ($LocalUser in $LocalUsers) {
-				if (-not $LocalUser.Name -in $UserList) {
-					Disable-LocalUser -Name $LocalUser.Name
-					Write-Host "[INFO]" $LocalUser.Name "disabled"
-				}
-			}
-    }
+	}
+}
+
+Write-Host "Now wait for a score check. If you don't loose points for a disabled user then continue."
+Write-Host "If you do loose points then go fix the user list and renable the account. DO NOT CONTINUE"
+Write-Host 'Press any key to continue...';
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+Write-Host ""
+
+Write-Host "Step2: DELETE all users not on the list"
+Write-Host 'Press any key to continue...';
+$null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
+Write-Host ""
+
+if ($IsDC) {
+	$DomainUsers = Get-ADUser -filter *
+	foreach ($DomainUser in $DomainUsers) {
+		if (-not($DomainUser.Name -in $AllowUsers)) {
+			Remove-ADAccount -Name $DomainUser.Name
+			Write-Host "[INFO]" $DomainUser.Name "is no longer with us"
+		} 
+	}
+} else {
+	$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
+	foreach ($LocalUser in $LocalUsers) {
+		if (-not($LocalUser.Name -in $AllowUsers) -and (-not($LocalUser.Name -in @("Administrator", "DefaultAccount", "Guest", "WDAGUtilityAccount")))) {
+			Remove-LocalUser -Name $LocalUser.Name
+			Write-Host "[INFO]" $LocalUser.Name "is no longer with us"
+		}
+	}
+}
+
 
 #chandi fortnite
