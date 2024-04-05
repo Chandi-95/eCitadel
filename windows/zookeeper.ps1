@@ -155,6 +155,14 @@ Write-Host ""
 				Write-Host "[INFO]" $member.Name " has been removed from " $group.Name
 			}
 		}
+		while(1){
+			$resp = read-host "Should there be more users in"$group.name"? (enter for no or type a name) "
+			if($resp -eq ""){
+				break
+			}
+			
+			net localgroup $group.name /add $resp
+		}
 	}
  }
 
