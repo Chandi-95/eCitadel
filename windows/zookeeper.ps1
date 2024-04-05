@@ -1,4 +1,5 @@
 $me = $Env:UserName
+$superSecretPassword = ConvertTo-SecureString "Password-12345" -AsPlainText -Force
 [string]$cmdPath = $MyInvocation.MyCommand.Path
 $currentDir = $cmdPath.substring(0, $cmdPath.IndexOf("zookeeper.ps1"))
 
@@ -8,7 +9,7 @@ Write-Host "this script will delete unauthorized users permantly, a snapshot mig
 $authorizedDir =  "C:\users\$me\Desktop\authorizedUsers.txt"
 
 try {
-	New-Item $authorizedDir | Out-Null
+	New-Item -ErrorAction Stop $authorizedDir | Out-Null 
 	
 	Write-Host "Added a txt to the desktop. Copy paste the authorized users there, one per line"
 	Write-Host 'Press any key to continue...';
@@ -91,20 +92,20 @@ if ($IsDC) {
 
 Write-Host "Step3: Create Missing Users"
 if ($IsDC) {
-	$DomainUsers = Get-ADUser -filter *
-	foreach ($User in $AllowUsers) {
-		if (-not($User.Name -in $DomainUsers)) {
-			New-ADUser -Name $User.Name
-			Write-Host "[INFO]" $User.Name "created"
+	foreach ($User in $AllowUsers){
+		try{
+			New-ADUser -Name $User -Password $superSecretPassword -ErrorAction Stop
+			Write-Host "[INFO]" $User "created"
 		}
+		catch{continue}
 	}
 } else {
-	$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
-	foreach ($User in $AllowUsers) {
-		if (-not($User.Name -in $LocalUsers)){
-			New-LocalUser -Name $User.Name
-			Write-Host "[INFO]" $User.Name "created"
+	foreach ($User in $AllowUsers){
+		try{
+			New-LocalUser -Name $User -Password $superSecretPassword -ErrorAction Stop
+			Write-Host "[INFO]" $User "created"
 		}
+		catch{continue}
 	}
 }
 
@@ -112,18 +113,6 @@ Write-Host "Step4: Permission remaining users"
 Write-Host 'Press any key to continue...';
 $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown');
 Write-Host ""
-
-if ($IsDC) {
-	foreach ($User in $AllowUsers) {
-		New-ADUser -Name $User.Name
-		Write-Host "[INFO]" $User.Name "created"
-	}
-} else {
-	foreach ($User in $AllowUsers) {
-		New-LocalUser -Name $User.Name
-		Write-Host "[INFO]" $User.Name "created"
-	}
-}
 
 Write-Host "Step5: Audit Groups"
 Write-Host 'Press any key to continue...';
