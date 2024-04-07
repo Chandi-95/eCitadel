@@ -74,23 +74,21 @@ $ProgressPreference = 'SilentlyContinue'
 (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Logging-Scripts/main/agent_windows.conf", (Join-Path -Path $ConfPath -ChildPath "agent_windows.conf"))
 # Yara response script
 (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Logging-Scripts/main/yara.bat", (Join-Path -Path $ScriptPath -ChildPath "yara.bat"))
-# User Management script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/usermgmt.ps1", (Join-Path -Path $ScriptPath -ChildPath "usermgmt.ps1"))
-# TODO: replace this
+# TODO: replace with proper link to zookeeper.ps1
+# User Management script 
+(New-Object System.Net.WebClient).DownloadFile("", (Join-Path -Path $ScriptPath -ChildPath ""))
 # Secure baseline script
-# (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/secure.ps1", (Join-Path -Path $ScriptPath -ChildPath "secure.ps1"))
+(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/secure.ps1", (Join-Path -Path $ScriptPath -ChildPath "secure.ps1"))
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] System scripts and config files downloaded" -ForegroundColor white
 
 # Service tooling 
 if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { # DC detection
     # RSAT tooling (AD management tools + DNS management)
     Install-WindowsFeature -Name RSAT-AD-Tools,RSAT-DNS-Server,GPMC
-    # TODO: replace these
-    # Domain, Domain Controller, member/client, and Defender GPOs 
-    # (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/gpos/%7BEE3B9E95-9783-474A-86A5-907E93E64F57%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{EE3B9E95-9783-474A-86A5-907E93E64F57}.zip"))
-    # (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/gpos/%7B40E1EAFA-8121-4FFA-B6FE-BC348636AB83%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{40E1EAFA-8121-4FFA-B6FE-BC348636AB83}.zip"))
-    # (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/gpos/%7B6136C3E1-B316-4C46-9B8B-8C1FC373F73C%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{6136C3E1-B316-4C46-9B8B-8C1FC373F73C}.zip"))
-    # (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/gpos/%7BBEAA6460-782B-4351-B17D-4DC8076633C9%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{BEAA6460-782B-4351-B17D-4DC8076633C9}.zip"))
+    # Domain, Domain Controller, and admin template GPOs 
+    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B2FF38BB4-4B44-44FE-9E95-5426EC5EE2C7%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{2FF38BB4-4B44-44FE-9E95-5426EC5EE2C7}.zip"))
+    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B065414B1-7553-477D-A047-5169D6A5D587%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{065414B1-7553-477D-A047-5169D6A5D587}.zip"))
+    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B3281473A-F66C-423B-B824-DB24CB2B7DC5%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}.zip"))
     # Reset-KrbtgtKeyInteractive script
     (New-Object System.Net.WebClient).DownloadFile("https://gist.githubusercontent.com/mubix/fd0c89ec021f70023695/raw/02e3f0df13aa86da41f1587ad798ad3c5e7b3711/Reset-KrbtgtKeyInteractive.ps1", (Join-Path -Path $ScriptPath -ChildPath "Reset-KrbtgtKeyInteractive.ps1"))
     # Pingcastle
@@ -100,19 +98,18 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] DC tools downloaded" -ForegroundColor white
     # Pingcastle, GPO extraction
     Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "pc.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "pc") 
-    # TODO: replace these
-    # Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{AFB8A9FB-461A-4432-8F89-3847DFBEA45F}.zip") -DestinationPath $ConfPath
-    # Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{5A5FA47B-F8F6-4B0B-84DB-E46EF6C239C0}.zip") -DestinationPath $ConfPath
-    # Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{EBDE39CE-90F2-4119-AA69-E0E48F0FCCAA}.zip") -DestinationPath $ConfPath
-    # Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{BEAA6460-782B-4351-B17D-4DC8076633C9}.zip") -DestinationPath $ConfPath
+    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{2FF38BB4-4B44-44FE-9E95-5426EC5EE2C7}.zip") -DestinationPath $ConfPath
+    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{065414B1-7553-477D-A047-5169D6A5D587}.zip") -DestinationPath $ConfPath
+    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}.zip") -DestinationPath $ConfPath
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] DC tools extracted" -ForegroundColor white
 } else { # non-DC server/client tools
-    # TODO: replace this
-    # Local policy file
-    # (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/gpos/localpolicy.PolicyRules", (Join-Path -Path $ConfPath -ChildPath "localpolicy.PolicyRules"))
+    # Administrative template GPO
+    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B3281473A-F66C-423B-B824-DB24CB2B7DC5%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}.zip"))
+    # Local policy security template
+    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/msc-sec-template.inf", (Join-Path -Path $ConfPath -ChildPath "msc-sec-template.inf"))
     # LGPO tool
     (New-Object System.Net.WebClient).DownloadFile("https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip", (Join-Path -Path $InputPath -ChildPath "lg.zip"))
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] LGPO and local policy file downloaded" -ForegroundColor white
+    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] LGPO and local policy files downloaded" -ForegroundColor white
     # LGPO extraction
     Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "lg.zip") -DestinationPath $ToolsPath
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] LGPO extracted" -ForegroundColor white

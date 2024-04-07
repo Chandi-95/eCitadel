@@ -4,6 +4,7 @@ param (
 )
 
 # Lorge secure script
+# Author: Chandi Kanhai (@Chandi-95)
 $Error.Clear()
 $ErrorActionPreference = "Continue"
 
@@ -104,24 +105,23 @@ if ($DC) {
 
     # TODO: Fix for correct GPOs
     ## Importing domain GPOs
-    #Import-GPO -BackupId "EE3B9E95-9783-474A-86A5-907E93E64F57" -TargetName "common-domain-settings" -CreateIfNeeded -Path $ConfPath
-    #Import-GPO -BackupId "40E1EAFA-8121-4FFA-B6FE-BC348636AB83" -TargetName "domain-controller-settings" -CreateIfNeeded -Path $ConfPath
-    #Import-GPO -BackupId "6136C3E1-B316-4C46-9B8B-8C1FC373F73C" -TargetName "member-server-client-settings" -CreateIfNeeded -Path $ConfPath
-    #Import-GPO -BackupId "BEAA6460-782B-4351-B17D-4DC8076633C9" -TargetName "defender-settings" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "065414B1-7553-477D-A047-5169D6A5D587" -TargetName "wildcard-domain-policies" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "2FF38BB4-4B44-44FE-9E95-5426EC5EE2C7" -TargetName "wildcard-dc-policies" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "3281473A-F66C-423B-B824-DB24CB2B7DC5" -TargetName "wildcard-admin-templates" -CreateIfNeeded -Path $ConfPath
     
     $distinguishedName = (Get-ADDomain -Identity (Get-ADDomain -Current LocalComputer).DNSRoot).DistinguishedName
-    #New-GPLink -Name "common-domain-settings" -Target $distinguishedName -Order 1
-    #New-GPLink -Name "defender-settings" -Target $distinguishedName
-    #New-GPLink -Name "domain-controller-settings" -Target ("OU=Domain Controllers," + $distinguishedName) -Order 1
+    New-GPLink -Name "wildcard-domain-policies" -Target $distinguishedName -Order 1
+    New-GPLink -Name "wildcard-admin-templates" -Target $distinguishedName
+    New-GPLink -Name "wildcard-dc-policies" -Target ("OU=Domain Controllers," + $distinguishedName) -Order 1
 
     gpupdate /force
 } else {
-    ## Applying client machine/member server security template (deprecated)
-    # secedit /configure /db $env:windir\security\local.sdb /cfg 'conf\web-secpol.inf'
+    ## Applying client machine/member server security template
+    secedit /configure /db $env:windir\security\local.sdb /cfg (Join-Path -Path $ConfPath -ChildPath 'msc-sec-template.inf')
     
     # Importing local GPO
     $LGPOPath = Join-Path -Path $rootDir -ChildPath "tools\LGPO_30\LGPO.exe"
-    & $LGPOPath /p (Join-Path -Path $ConfPath -ChildPath "localpolicy.PolicyRules") 
+    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}") 
     
     gpupdate /force
 }
@@ -264,6 +264,9 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 ## Requiring a password on wakeup
 powercfg -SETACVALUEINDEX SCHEME_BALANCED SUB_NONE CONSOLELOCK 1 | Out-Null
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Enabled password required on wakeup" -ForegroundColor white 
+## Disable WPBT (Windows Platform Binary Table) functionality
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v DisableWpbtExecution /t REG_DWORD /d 1 /f | Out-Null
+Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Disabled WPBT" -ForegroundColor white
 
 # Explorer/file settings
 ## Changing file associations to make sure they have to be executed manually
@@ -408,6 +411,10 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 sc.exe sdset scmanager "D:(A;;CC;;;AU)(A;;CCLCRPRC;;;IU)(A;;CCLCRPRC;;;SU)(A;;CCLCRPWPRC;;;SY)(A;;KA;;;BA)(A;;CC;;;AC)S:(AU;FA;KA;;;WD)(AU;OIIOFA;GA;;;WD)" | Out-Null
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Reset SCM SDDL" -ForegroundColor white 
 
+# ----------- Subvert Trust Controls: Install Root Certificate (T1553.004) ------------
+reg add "HKLM\SOFTWARE\Policies\Microsoft\SystemCertificates\Root\ProtectedRoots" /f | Out-Null
+reg add "HKLM\SOFTWARE\Policies\Microsoft\SystemCertificates\Root\ProtectedRoots" /v Flags /t REG_DWORD /d 1 /f | Out-Null
+
 # ----------- WINDOWS DEFENDER/antimalware settings ------------
 ## Enabling early launch antimalware boot-start driver scan (good, unknown, and bad but critical)
 reg add "HKLM\SYSTEM\CurrentControlSet\Policies\EarlyLaunch" /v "DriverLoadPolicy" /t REG_DWORD /d 3 /f | Out-Null
@@ -422,6 +429,18 @@ if(!(Get-MpComputerStatus | Select-Object AntivirusEnabled)) {
 }
 ## Enabling Windows Defender sandboxing
 cmd /c "setx /M MP_FORCE_USE_SANDBOX 1" | Out-Null
+# EnableDnsSinkhole + other MpPreference settings
+Set-MpPreference -UILockdown $false
+Set-MpPreference -DisableDatagramProcessing $false
+Set-MpPreference -DisableDnsOverTcpParsing $false
+Set-MpPreference -DisableDnsParsing $false
+Set-MpPreference -DisableFtpParsing $false
+Set-MpPreference -DisableHttpParsing $false
+Set-MpPreference -DisableRdpParsing $false
+Set-MpPreference -DisableSmtpParsing 0
+Set-MpPreference -DisableSshParsing $false
+Set-MpPreference -DisableTlsParsing $false
+Set-MpPreference -EnableDnsSinkhole $true
 ## Enabling a bunch of configuration settings
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender" /v "DisableAntiSpyware" /t REG_DWORD /d 0 /f | Out-Null
 reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Defender" /v "HideExclusionsFromLocalAdmins" /t REG_DWORD /d 0 /f | Out-Null
@@ -1160,18 +1179,26 @@ if ($DC) {
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Deleted VSS shadow copies" -ForegroundColor white
 
     ## TODO: Split DNS secure settings into own category
+    # Preventing cache poisoning attacks
+    reg add "HKLM\System\CurrentControlSet\Services\DNS\Parameters" /v SecureResponses /t REG_DWORD /d 1 /f | Out-Null
     # SIGRed - CVE-2020-1350
     reg add "HKLM\SYSTEM\CurrentControlSet\Services\DNS\Parameters" /v TcpReceivePacketSize /t REG_DWORD /d 0xFF00 /f | Out-Null
     # CVE-2020-25705
     reg add "HKLM\SYSTEM\CurrentControlSet\Services\DNS\Parameters" /v MaximumUdpPacketSize /t REG_DWORD /d 0x4C5 /f | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] CVE-2020-1350 and CVE-2020-25705 mitigations in place" -ForegroundColor white   
     # Enabling global query block list (disabled IPv6 to IPv4 tunneling)
-    dnscmd /config /enableglobalqueryblocklist 1 | Out-Null
+    Set-DnsServerGlobalQueryBlockList -Enable $true | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Enabled global query block list for DNS" -ForegroundColor white   
     # Enabling response rate limiting
     Set-DnsServerRRL -Mode Enable -Force | Out-Null
-    Set-DnsServerResponseRateLimiting -ResetToDefault -Force | Out-Null
+    Set-DnsServerRRL -ResetToDefault -Force | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Response rate limiting enabled" -ForegroundColor white   
+    # Ensure DNS server restarts after failure + other settings
+    Set-DnsServerCache -PollutionProtection $true
+    Set-DnsServerDiagnostics -EventLogLevel 3
+    dnscmd /config /EnableVersionQuery 0
+    Set-DnsServerRecursion -Enable $false
+    sc.exe failure DNS reset= 10 actions= restart/10000/restart/10000/restart/10000
     net stop DNS
     net start DNS
     Write-Host "[INFO] AD/DNS hardening in place"
