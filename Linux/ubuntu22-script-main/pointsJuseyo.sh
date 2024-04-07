@@ -270,9 +270,27 @@ filePriv()
 	df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d -perm -0002 2>/dev/null | xargs chmod a+t
 	bash helperScripts/perms.sh
 }
+
 ipfun()
 {
 	bash helperScripts/ipfun.sh
+}
+
+dconfSettings()
+{
+	dconf reset -f /
+	gsettings set org.gnome.desktop.privacy remember-recent-files false
+	gsettings set org.gnome.desktop.media-handling automount false
+	gsettings set org.gnome.desktop.media-handling automount-open false
+	gsettings set org.gnome.desktop.search-providers disable-external true
+	dconf update /
+
+}
+
+grubSettings()
+{
+	cat configs/grub > /etc/default/grub
+	cat configs/40_custom > /etc/grub.d/40_custom
 }
 
 misc()
@@ -329,16 +347,6 @@ misc()
 	sudo rm -f /var/oxygen.html
 }	
 
-dconfSettings()
-{
-	dconf reset -f /
-	gsettings set org.gnome.desktop.privacy remember-recent-files false
-	gsettings set org.gnome.desktop.media-handling automount false
-	gsettings set org.gnome.desktop.media-handling automount-open false
-	gsettings set org.gnome.desktop.search-providers disable-external true
-	dconf update /
-
-}
 checkPackages()
 {
     echo "checking for and deleting malware"
@@ -565,7 +573,7 @@ lastMinuteChecks()
 	dmesg | grep "Kernel/User page tables isolation: enabled" && echo "patched" || echo "unpatched"
 
 	cat /etc/default/grub | grep "selinux" && echo "check /etc/default/grub for selinux" || echo "/etc/default/grub does not disable selinux"
-
+	cat /etc/default/grub | grep "apparmor" && echo "check /etc/default/grub for apparmor" || echo "/etc/default/grub does not disable apparmor"
 	cat /etc/default/grub | grep "enforcing=0" && echo "check /etc/default/grub for enforcing" || echo "/etc/default/grub does not contain enforcing=0"
 }
 
