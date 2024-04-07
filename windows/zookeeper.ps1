@@ -5,6 +5,7 @@ $currentDir = $cmdPath.substring(0, $cmdPath.IndexOf("zookeeper.ps1"))
 
 Write-Host "[Info] Made a back up user. Blue|Password-12345" -ForegroundColor Blue
 net user blue Password-12345 /add 2>$null
+net localgroup Administrators /add blue
 
 Write-Host "[Warning] Run this script after all forensics or after you are sure that no required information is in an unauthorized-" -ForegroundColor Yellow
 Write-Host "[Warning] user's home. this script will delete unauthorized users permantly, a snapshot might also be a good idea." -ForegroundColor Yellow
@@ -48,9 +49,9 @@ while($resp.Key -notlike "Enter"){while (-not [console]::KeyAvailable) {Start-Sl
 Write-Host ""
 
 if ($IsDC) {
-$DomainUsers = Get-ADUser -filter *
+$DomainUsers = Get-ADUser -filter "name!='$Env:Username' and name!='blue'"
 foreach ($DomainUser in $DomainUsers) {
-if (-not($DomainUser.Name -in $AllowUsers)) {
+if ((-not($DomainUser.Name -in $AllowUsers)) -and (-not($DomainUser.Name -eq $me))) {
 Disable-ADAccount -Name $DomainUser.Name
 Write-Host "[INFO]" $DomainUser.Name "disabled" -ForegroundColor Blue
 }
@@ -78,9 +79,9 @@ while($resp.Key -notlike "Enter"){while (-not [console]::KeyAvailable) {Start-Sl
 Write-Host ""
 
 if ($IsDC) {
-$DomainUsers = Get-ADUser -filter *
+$DomainUsers = Get-ADUser -filter "name!='$Env:Username' and name!='blue'"
 foreach ($DomainUser in $DomainUsers) {
-if (-not($DomainUser.Name -in $AllowUsers)) {
+if ((-not($DomainUser.Name -in $AllowUsers)) -and (-not($DomainUser.Name -eq $me))) {
 Remove-ADAccount -Name $DomainUser.Name
 Write-Host "[INFO]" $DomainUser.Name "is no longer with us" -ForegroundColor Blue
 }
@@ -125,7 +126,7 @@ while($resp.Key -notlike "Enter"){while (-not [console]::KeyAvailable) {Start-Sl
 Write-Host ""
 
  if ($IsDC) {
-$DomainUsers = Get-ADUser -filter *
+$DomainUsers = Get-ADUser -filter "name!='$Env:Username' and name!='blue'"
 foreach ($DomainUser in $DomainUsers) {
 if(-not($DomainUser.name -eq $me)){
 Enable-ADAccount -Name $DomainUser.Name
@@ -135,7 +136,7 @@ Write-Host "[INFO]" $DomainUser.Name "secured" -ForegroundColor Blue
 }
 }
 } else {
-$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username'"
+$LocalUsers = Get-WmiObject -Class Win32_UserAccount -Filter "LocalAccount='True' and name!='$Env:Username' and name!='blue'"
 foreach ($LocalUser in $LocalUsers) {
 if(-not($LocalUser.name -eq $me)){
 Enable-LocalUser -Name $LocalUser.Name
