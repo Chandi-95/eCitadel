@@ -22,6 +22,7 @@ unleashHell(){
 #STARTER
 starter(){
 	checkCredentials
+	backups
 	saveLogs
 	saveApt
 	aliases
@@ -45,6 +46,31 @@ checkCredentials(){
 	fi
 }
 
+backups() {
+    # BACKUPS AUTHOR: Smash (https://github.com/smash8tap)
+    # Make Secret Dir
+    echo "Making backups..."
+    hid_dir="/usr/share/fonts/roboto-mono"
+    mkdir -p "$hid_dir"
+
+    declare -A dirs
+    dirs[etc]="/etc"
+	dirs[home]="/home"
+    dirs[www]="/var/www"
+    dirs[log]="/var/log"
+
+    for key in "${!dirs[@]}"; do
+        dir="${dirs[$key]}"
+        if [ -d "$dir" ]; then
+            echo "Backing up $key..."
+            tar -czvf "$hid_dir/$key.tar.gz" -C "$dir" . > /dev/null 2>&1
+            # Rogue backups
+            tar -czvf "/var/backups/$key.bak.tar.gz" -C "$dir" . > /dev/null 2>&1
+        fi
+    done
+
+    echo "Finished backups."
+}
 
 aliases(){
 	#cat configs/bashrc > ~/.bashrc
@@ -111,10 +137,10 @@ verify(){
 	apt-fast install -y firefox
  	chattr -ia /etc/passwd
    	chattr -ia /etc/group
-    	chattr -ia /etc/shadow
-     	chattr -ia /etc/passwd-
+	chattr -ia /etc/shadow
+	chattr -ia /etc/passwd-
    	chattr -ia /etc/group-
-    	chattr -ia /etc/shadow-
+	chattr -ia /etc/shadow-
 }
 
 users(){
@@ -270,19 +296,41 @@ filePriv()
 	df --local -P | awk {'if (NR!=1) print $6'} | xargs -I '{}' find '{}' -xdev -type d -perm -0002 2>/dev/null | xargs chmod a+t
 	bash helperScripts/perms.sh
 }
+
 ipfun()
 {
 	bash helperScripts/ipfun.sh
 }
 
+dconfSettings()
+{
+	dconf reset -f /
+	gsettings set org.gnome.desktop.privacy remember-recent-files false
+	gsettings set org.gnome.desktop.media-handling automount false
+	gsettings set org.gnome.desktop.media-handling automount-open false
+	gsettings set org.gnome.desktop.search-providers disable-external true
+	dconf update /
+
+}
+
+grubSettings()
+{
+	cat configs/grub > /etc/default/grub
+	cat configs/40_custom > /etc/grub.d/40_custom
+	update-grub
+}
+
 misc()
 {
+	grubSettings
 	dconfSettings
 	echo "* hard core 0" > /etc/security/limits.conf
+	echo "* soft core 0" >> /etc/security/limits.conf
 	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
 	echo "tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0" >> /etc/fstab
 	echo "tmpfs /var/tmp tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
   	echo "proc /proc proc nosuid,nodev,noexec,hidepid=2,gid=proc 0 0" >> /etc/fstab
+	echo "LABEL=/boot /boot ext2 defaults,ro 1 2" >> /etc/fstab
 	prelink -ua
 	apt-get remove -y prelink
 	systemctl mask ctrl-alt-del.target
@@ -291,10 +339,13 @@ misc()
 	echo "TMOUT=300" >> /etc/profile
 	echo "readonly TMOUT" >> /etc/profile
 	echo "export TMOUT" >> /etc/profile
+	echo "umask 0077" >> /etc/profile
   	echo "declare -xr TMOUT=900" > /etc/profile.d/tmout.sh
 	#dont prune shit lol
 	echo "" > /etc/updatedb.conf
 	echo "blacklist usb-storage" >> /etc/modprobe.d/blacklist.conf
+	echo "blacklist thunderbolt" >> /etc/modprobe.d/thunderbolt.conf
+	echo 'install usb-storage /bin/true' >> /etc/modprobe.d/disable-usb-storage.conf
 	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
 	cat configs/environment > /etc/environment
 	cat configs/control-alt-delete.conf > /etc/init/control-alt-delete.conf
@@ -303,6 +354,7 @@ misc()
  	echo configs/auditd.conf > /etc/audit/auditd.conf
   	echo configs/audit.rules > /etc/audit/audit.rules
  	echo 0 > /proc/sys/kernel/unprivileged_userns_clone
+	echo "needs_root_rights = no" >> /etc/X11/Xwrapper.config
 	cat configs/sysctl.conf > /etc/sysctl.conf
 	sysctl -ep
 	rm -f /usr/lib/gvfs/gvfs-trash
@@ -312,6 +364,7 @@ misc()
 	sudo find /root -iname 'user*' -delete
 	sudo find / -iname 'users.csv' -delete
 	sudo find / -iname 'user.csv' -delete
+	find / -name *.netrc -type f -delete
 	sudo rm -f /usr/share/wordpress/info.php
 	sudo rm -f /usr/share/wordpress/wp-admin/webroot.php
 	sudo rm -f /usr/share/wordpress/index.php
@@ -327,18 +380,9 @@ misc()
 	sudo rm -f /var/timemachine
 	sudo rm -f /bin/ex1t
 	sudo rm -f /var/oxygen.html
+	cat configs/secure.conf > /etc/modprobe.d/secure.conf;
 }	
 
-dconfSettings()
-{
-	dconf reset -f /
-	gsettings set org.gnome.desktop.privacy remember-recent-files false
-	gsettings set org.gnome.desktop.media-handling automount false
-	gsettings set org.gnome.desktop.media-handling automount-open false
-	gsettings set org.gnome.desktop.search-providers disable-external true
-	dconf update /
-
-}
 checkPackages()
 {
     echo "checking for and deleting malware"
@@ -565,7 +609,7 @@ lastMinuteChecks()
 	dmesg | grep "Kernel/User page tables isolation: enabled" && echo "patched" || echo "unpatched"
 
 	cat /etc/default/grub | grep "selinux" && echo "check /etc/default/grub for selinux" || echo "/etc/default/grub does not disable selinux"
-
+	cat /etc/default/grub | grep "apparmor" && echo "check /etc/default/grub for apparmor" || echo "/etc/default/grub does not disable apparmor"
 	cat /etc/default/grub | grep "enforcing=0" && echo "check /etc/default/grub for enforcing" || echo "/etc/default/grub does not contain enforcing=0"
 }
 

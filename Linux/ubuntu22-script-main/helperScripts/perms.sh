@@ -56,6 +56,7 @@ chmod 555 /sys
 chmod 1755 /tmp
 chmod 755 /usr
 chmod 755 /var/
+chmod 700 /boot /usr/src /lib/modules /usr/lib/modules
 chown root:root /etc/resolvconf/resolv.conf.d/
 chown root:root /etc/resolvconf/resolv.conf.d/base
 chown root:root /etc/resolv.conf
