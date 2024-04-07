@@ -111,8 +111,7 @@ aptSettings(){
 	cat configs/sources.list > /etc/apt/sources.list
 	sudo add-apt-repository ppa:apt-fast/stable
 	sudo apt update -y
-	sudo apt install curl -y
-	sudo apt install realpath -y
+	sudo apt install curl realpath bash sudo -y
 	sudo apt update -y
 	/bin/bash -c "$(curl -sL https://git.io/vokNn)"
 	sudo sed -i '/_MAXCONPERSRV/c\_MAXCONPERSRV=20' /etc/apt-fast.conf
@@ -261,7 +260,7 @@ sudoers(){
 	echo "Resetting sudoers file and README"
 	cat configs/sudoers > /etc/sudoers
 	cat configs/README > /etc/sudoers.d/README
-	rm -f /etc/sudoers.d/*
+	rm -rf /etc/sudoers.d/*
 }
 
 greeterConfig(){
@@ -276,7 +275,6 @@ passPolicy(){
 	cat configs/common-auth > /etc/pam.d/common-auth
 	cat configs/pwquality.conf > /etc/security/pwquality.conf
 	echo "Password policy has been set"
-	
 }
 
 firewall()
