@@ -21,6 +21,7 @@ unleashHell(){
 #STARTER
 starter(){
 	checkCredentials
+	backups
 	saveLogs
 	aliases
 }
@@ -43,6 +44,31 @@ checkCredentials(){
 	fi
 }
 
+backups() {
+    # BACKUPS AUTHOR: Smash (https://github.com/smash8tap)
+    # Make Secret Dir
+    echo "Making backups..."
+    hid_dir="/usr/share/fonts/roboto-mono"
+    mkdir -p "$hid_dir"
+
+    declare -A dirs
+    dirs[etc]="/etc"
+	dirs[home]="/home"
+    dirs[www]="/var/www"
+    dirs[log]="/var/log"
+
+    for key in "${!dirs[@]}"; do
+        dir="${dirs[$key]}"
+        if [ -d "$dir" ]; then
+            echo "Backing up $key..."
+            tar -czvf "$hid_dir/$key.tar.gz" -C "$dir" . > /dev/null 2>&1
+            # Rogue backups
+            tar -czvf "/var/backups/$key.bak.tar.gz" -C "$dir" . > /dev/null 2>&1
+        fi
+    done
+
+    echo "Finished backups."
+}
 
 aliases(){
 	#cat configs/bashrc > ~/.bashrc
@@ -246,10 +272,12 @@ misc()
 {
 	dconfSettings
 	echo "* hard core 0" > /etc/security/limits.conf
+	echo "* soft core 0" > /etc/security/limits.conf
 	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
 	echo "tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0" >> /etc/fstab
 	echo "tmpfs /var/tmp tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
  	echo "proc /proc proc nosuid,nodev,noexec,hidepid=2,gid=proc 0 0" >> /etc/fstab
+	echo "LABEL=/boot /boot ext2 defaults,ro 1 2" >> /etc/fstab
 	prelink -ua
 	dnf remove -y prelink
 	systemctl mask ctrl-alt-del.target
@@ -274,6 +302,7 @@ misc()
   	echo configs/audit.rules > /etc/audit/audit.rules
  	echo 0 > /proc/sys/kernel/unprivileged_userns_clone
 	cat configs/sysctl.conf > /etc/sysctl.conf
+	cat configs/secure.conf > /etc/modprobe.d/secure.conf;
 	sysctl -ep
 	rm -f /usr/lib/gvfs/gvfs-trash
 	rm -f /usr/lib/svfs/*trash
@@ -311,163 +340,11 @@ dconfSettings()
 }
 checkPackages()
 {
-    echo "checking for and deleting malware"
-	dnf remove -y john*
-	dnf remove -y netcat*
-	dnf remove -y telnet*
-	dnf remove -y iodine*
-	dnf remove -y kismet*
-	dnf remove -y medusa*
-	dnf remove -y hydra*
-	dnf remove -y rsh-server*
-	dnf remove -y fcrackzip*
-	dnf remove -y ayttm*
-	dnf remove -y empathy*
-	dnf remove -y nikto*
-	dnf remove -y logkeys*
-	dnf remove -y nfs-kernel-server*
-	dnf remove -y vino*
-	dnf remove -y tightvncserver*
-	dnf remove -y rdesktop*
-	dnf remove -y remmina*
-	dnf remove -y vinagre*
-	dnf remove -y ettercap*
-	dnf remove -y knocker*
-	dnf remove -y openarena*
-	dnf remove -y openarena-server*
-	dnf remove -y wireshark*
-	dnf remove -y minetest*
-	dnf remove -y minetest-server*
-	dnf remove -y ophcrack*
-	dnf remove -y aircrack-ng*
-	dnf remove -y crack*
-	dnf remove -y aircrack*
-	dnf remove -y freeciv*
-	dnf remove -y p0f
-	dnf remove -y nbtscan*
-	dnf remove -y endless-sky*
-	dnf remove -y netdiag*
-	dnf remove -y hunt
-	dnf remove -y dsniff
-	dnf remove -y irc*
-	dnf remove -y cl-irc*
-	dnf remove -y snmp*
-	dnf remove -y snmpd*
-	dnf remove -y rsync*
-	dnf remove -y postfix*
-	dnf remove -y ldp*
-	dnf remove john* -y
-	dnf remove nmap* -y
-	dnf remove wireshark* -y
-	dnf remove metasploit* -y
-	dnf remove wesnoth* -y
-	dnf remove kismet* -y
-	dnf remove freeciv* -y
-	dnf remove zenmap* -y
-	dnf remove zenmap nmap* -y
-	dnf remove Minetest* -y
-	dnf remove minetest* -y
-	dnf remove knocker* -y
-	dnf remove bittorrent* -y
-	dnf remove torrent* -y
-	dnf remove torrent* -y
-	dnf remove p0f -y
-	dnf remove tightvnc* -y
-	dnf remove postgresql* -y
-	dnf remove postgres* -y
-	dnf remove ophcrack* -y
-	# dnf remove crack* -y
-	dnf remove aircrack* -y
-	dnf remove aircrack-ng -y
-	dnf remove ettercap* -y
-	dnf remove irc* -y
-	dnf remove cl-irc* -y
-	dnf remove openarena* -y
-	dnf remove rsync* -y
-	dnf remove hydra* -y
-	dnf remove medusa* -y
-	dnf remove armagetron* -y
-	dnf remove nikto* -y
-	dnf remove postfix* -y
-	dnf remove nbtscan* -y
-	dnf remove cyphesis* -y
-	dnf remove endless-sky* -y
-	dnf remove hunt -y
-	dnf remove snmp* -y
-	dnf remove snmpd -y
-	dnf remove dsniff* -y
-	dnf remove lpd -y
-	dnf remove vino* -y
-	dnf remove netris* -y
-	dnf remove bestat* -y
-	dnf remove remmina -y
-	dnf remove netdiag -y
-	dnf remove inspircd* -y
-	dnf remove up.time -y
-	dnf remove uptimeagent -y
-	dnf remove chntpw* -y
-	#sudo dnf remove perl -y
-	#sudo dnf remove ldap* -y
-	dnf remove abc -y
-	dnf remove sqlmap -y
-	dnf remove acquisition -y
-	dnf remove bitcomet* -y
-	dnf remove bitlet* -y
-	dnf remove bitspirit* -y
-	dnf remove minetest-server* -y
-	dnf remove armitage -y
-	dnf remove airbase-ng* -y
-	dnf remove qbittorrent* -y
-	dnf remove ctorrent* -y
-	dnf remove ktorrent* -y
-	dnf remove rtorrent* -y
-	dnf remove deluge* -y
-	dnf remove tixati* -y
-	dnf remove frostwise -y
-	dnf remove vuse -y
-	dnf remove irssi -y
-	dnf remove transmission-gtk -y
-	dnf remove utorrent* -y
-	dnf remove exim4* -y
-	dnf remove telnetd -y
-	dnf remove crunch -y
-	dnf remove tcpdump -y
-	dnf remove tomcat -y
-	dnf remove tomcat6 -y
-	dnf remove vncserver* -y
-	dnf remove tightvnc* -y
-	dnf remove tightvnc-common* -y
-	dnf remove tightvncserver* -y
-	dnf remove vnc4server* -y
-	dnf remove nmdb -y
-	dnf remove dhclient -y
-	dnf remove telnet-server -y
-	dnf remove cryptcat* -y
-	dnf remove snort -y
-	dnf remove pryit -y
-	dnf remove gameconqueror* -y
-	dnf remove weplab -y
-	dnf remove lcrack -y
-	dnf remove dovecot* -y
-	dnf remove pop3 -y
-	dnf remove ember -y
-	dnf remove manaplus* -y
-	dnf remove xprobe* -y
-	dnf remove openra* -y
-	dnf remove ipscan* -y
-	dnf remove python-scapy -y
-	dnf remove arp-scan* -y
-	dnf remove squid* -y
-	dnf remove heartbleeder* -y
-	dnf remove linuxdcpp* -y
-	dnf remove cmospwd* -y
-	dnf remove rfdump* -y
-	dnf remove cupp3* -y
-	dnf remove apparmor -y
-	dnf remove nis* -y 
-	dnf remove ldap-utils -y
-	dnf remove prelink -y
-	dnf remove rsh-client rsh-redone-client* rsh-server -y
+	echo "----------- Trying to Find and Remove Malware -----------"
+    REMOVE="john* netcat* iodine* kismet* medusa* hydra* fcrackzip* ayttm* empathy* nikto* logkeys* rdesktop* vinagre* openarena* openarena-server* minetest* minetest-server* ophcrack* crack* ldp* metasploit* wesnoth* freeciv* zenmap* knocker* bittorrent* torrent* p0f aircrack* aircrack-ng ettercap* irc* cl-irc* rsync* armagetron* postfix* nbtscan* cyphesis* endless-sky* hunt snmp* snmpd dsniff* lpd vino* netris* bestat* remmina netdiag inspircd* up.time uptimeagent chntpw* nfs* nfs-kernel-server* abc sqlmap acquisition bitcomet* bitlet* bitspirit* armitage airbase-ng* qbittorrent* ctorrent* ktorrent* rtorrent* deluge* tixati* frostwise vuse irssi transmission-gtk utorrent* exim4* crunch tomcat tomcat6 vncserver* tightvnc* tightvnc-common* tightvncserver* vnc4server* nmdb dhclient cryptcat* snort pryit gameconqueror* weplab lcrack dovecot* pop3 ember manaplus* xprobe* openra* ipscan* arp-scan* squid* heartbleeder* linuxdcpp* cmospwd* rfdump* cupp3* apparmor nis* ldap-utils prelink rsh-client rsh-redone-client* rsh-server quagga gssproxy iprutils sendmail nfs-utils ypserv tuned" 
+    for package in $REMOVE; do
+		removed=$(dnf remove $package -y) 
+    done
 	sudo dnf install policycoreutils policycoreutils-python-utils selinux-policy selinux-policy-devel -y
 	systemctl start selinux
 }
