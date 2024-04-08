@@ -109,31 +109,29 @@ aptSettings(){
 
 	echo "Setting sources.list repositories"
 	cat configs/sources.list > /etc/apt/sources.list
-	sudo add-apt-repository ppa:apt-fast/stable
 	sudo apt update -y
 	sudo apt install curl realpath bash sudo -y
 	sudo apt update -y
 	/bin/bash -c "$(curl -sL https://git.io/vokNn)"
-	sudo sed -i '/_MAXCONPERSRV/c\_MAXCONPERSRV=20' /etc/apt-fast.conf
 }
 
 verify(){
 	echo "checking the integrity of all packages using debsums"
 	apt-get update > /dev/null
-	apt-fast install -y debsums
-	apt-fast install -y net-tools
-	apt-fast install -y apt
-	apt-fast update -y
+	apt install -y debsums
+	apt install -y net-tools
+	apt install -y apt
+	apt update -y
 	echo "fixing corrupt packages"
-	apt-fast install --reinstall $(dpkg -S $(debsums -c) | cut -d : -f 1 | sort -u) -y
-	apt-fast install --reinstall ufw libpam-pwquality procps net-tools findutils binutils coreutils -y
+	apt install --reinstall $(dpkg -S $(debsums -c) | cut -d : -f 1 | sort -u) -y
+	apt install --reinstall ufw libpam-pwquality procps net-tools findutils binutils coreutils -y
 	echo "fixing files with missing files"
 	xargs -rd '\n' -a <(sudo debsums -c 2>&1 | cut -d " " -f 4 | sort -u | xargs -rd '\n' -- dpkg -S | cut -d : -f 1 | sort -u) -- sudo apt-get install -f --reinstall --
-	apt-fast install -y ufw
-	apt-fast install -y libpam-pwquality  
- 	apt-fast install -y libpam-faillock  
-	apt-fast install -y sudo
-	apt-fast install -y firefox
+	apt install -y ufw
+	apt install -y libpam-pwquality  
+ 	apt install -y libpam-faillock  
+	apt install -y sudo
+	apt install -y firefox
  	chattr -ia /etc/passwd
    	chattr -ia /etc/group
 	chattr -ia /etc/shadow
@@ -346,7 +344,7 @@ misc()
 	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
 	cat configs/environment > /etc/environment
 	cat configs/control-alt-delete.conf > /etc/init/control-alt-delete.conf
-	apt-fast install -y auditd > /dev/null
+	apt install -y auditd > /dev/null
 	auditctl -e 1
  	echo configs/auditd.conf > /etc/audit/auditd.conf
   	echo configs/audit.rules > /etc/audit/audit.rules
