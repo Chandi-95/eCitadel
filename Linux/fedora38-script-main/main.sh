@@ -53,7 +53,7 @@ backups() {
 
     declare -A dirs
     dirs[etc]="/etc"
-	dirs[home]="/home"
+	#dirs[home]="/home"
     dirs[www]="/var/www"
     dirs[log]="/var/log"
 
@@ -271,6 +271,7 @@ filePriv()
 misc()
 {
 	dconfSettings
+	grubSettings
 	echo "* hard core 0" > /etc/security/limits.conf
 	echo "* soft core 0" > /etc/security/limits.conf
 	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
@@ -336,8 +337,15 @@ dconfSettings()
 	gsettings set org.gnome.desktop.media-handling automount-open false
 	gsettings set org.gnome.desktop.search-providers disable-external true
 	dconf update /
-
 }
+
+grubSettings()
+{
+	cat configs/grub > /etc/default/grub
+	cat configs/40_custom > /etc/grub.d/40_custom
+	grub-mkconfig -o /boot/grub/grub.cfg
+}
+
 checkPackages()
 {
 	echo "----------- Trying to Find and Remove Malware -----------"
