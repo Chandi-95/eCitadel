@@ -47,9 +47,10 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 
 # yo i hope this works
 if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Server") {
-    Install-WindowsFeature -Name Bitlocker,Windows-Defender
+    Install-WindowsFeature -Name Bitlocker,Windows-Defender | Out-Null
     # the following feature might not exist based on the windows server version
-    Install-WindowsFeature -Name Windows-Defender-GUI
+    Install-WindowsFeature -Name Windows-Defender-GUI | Out-Null
+    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Bitlocker and Windows Defender installed" -ForegroundColor white
 }
 
 # Custom tooling downloads
@@ -117,12 +118,12 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
 
 if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
     # Add package manager and repository for PowerShell
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
-    Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted
+    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+    Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted | Out-Null
     # install dependency for locksmith (AD PowerShell module) and ADCS management tools
-    Install-WindowsFeature -Name RSAT-AD-PowerShell,RSAT-ADCS-Mgmt
+    Install-WindowsFeature -Name RSAT-AD-PowerShell,RSAT-ADCS-Mgmt | Out-Null
     # install locksmith
-    Install-Module -Name Locksmith -Scope CurrentUser
+    Install-Module -Name Locksmith -Scope CurrentUser | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Locksmith downloaded and installed" -ForegroundColor white
 }
 
@@ -133,7 +134,8 @@ if ((Test-Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion") -and (Get-I
     Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "epp.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "epp")
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Explorer++ downloaded and extracted" -ForegroundColor white
     # Server Core App Compatibility FOD
-    Add-WindowsCapability -Online -Name ServerCore.AppCompatibility~~~~0.0.1.0
+    Add-WindowsCapability -Online -Name ServerCore.AppCompatibility~~~~0.0.1.0 | Out-Null
+    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Additional MS tools installed" -ForegroundColor white
     # NetworkMiner
     (New-Object System.Net.WebClient).DownloadFile("https://netresec.com/?download=NetworkMiner", (Join-Path -Path $InputPath -ChildPath "nm.zip"))
     Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "nm.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "nm")
