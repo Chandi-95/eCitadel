@@ -390,7 +390,6 @@ checkPackages()
             echo "$package was removed from the system"
         fi 
     done
-}
 	sudo apt install apparmor -y
 	sudo service apparmor start
 
