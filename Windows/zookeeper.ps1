@@ -26,7 +26,7 @@ $superSecretPassword = ConvertTo-SecureString $Password -AsPlainText -Force
 
 # adding backup user
 $backupusername = 'blue'
-Set-LocalUser -Name $backupusername -Password $superSecretPassword
+New-LocalUser -Name $backupusername -Password $superSecretPassword
 net localgroup Administrators blue /add
 if ($DC) {
     Add-ADGroupMember -Identity "Domain Admins" -Members "blue"
