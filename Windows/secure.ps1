@@ -62,7 +62,7 @@ Write-Host "[INFO] WinRM disabled and listeners removed"
 $capabilities = @("OpenSSH.Client~~~~0.0.1.0", "OpenSSH.Server~~~~0.0.1.0", "RIP.Listener~~~~0.0.1.0", "XPS.Viewer~~~~0.0.1.0")
 foreach ($capability in $capabilities) {
     if ((Get-WindowsCapability -Online -Name $capability | Select-Object -ExpandProperty "State") -eq "Installed") {
-        Remove-WindowsCapability -Online -Name $capability
+        Remove-WindowsCapability -Online -Name $capability | Out-Null
         Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Uninstalled $capability" -ForegroundColor white 
     }
 }
@@ -71,7 +71,7 @@ foreach ($capability in $capabilities) {
 $features = @("MicrosoftWindowsPowerShellV2", "MicrosoftWindowsPowerShellV2Root", "SMB1Protocol", "MultiPoint-Connector", "MultiPoint-Connector-Services", "MultiPoint-Tools", "SimpleTCP")
 foreach ($feature in $features) {
     if ((Get-WindowsOptionalFeature -Online -FeatureName $feature | Select-Object -ExpandProperty "State") -eq "Enabled") {
-        Disable-WindowsOptionalFeature -Online -FeatureName $feature -norestart
+        Disable-WindowsOptionalFeature -Online -FeatureName $feature -norestart | Out-Null
         Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Disabled $feature" -ForegroundColor white 
     }
 }
