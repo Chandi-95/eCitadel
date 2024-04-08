@@ -45,7 +45,7 @@ chmod 755 /sbin
 chmod 755 /snap
 chmod 755 /srv
 chmod 555 /sys
-chmod 1755 /tmp
+chmod 1777 /tmp
 chmod 755 /usr
 chmod 755 /var/
 chown root:root /etc/resolvconf/resolv.conf.d/

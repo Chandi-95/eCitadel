@@ -55,7 +55,7 @@ backups() {
 
     declare -A dirs
     dirs[etc]="/etc"
-	dirs[home]="/home"
+	#dirs[home]="/home"
     dirs[www]="/var/www"
     dirs[log]="/var/log"
 
@@ -106,7 +106,6 @@ aptSettings(){
 	echo "Setting automatic update checks"
 	cat configs/10periodic > /etc/apt/apt.conf.d/10periodic
 	cat configs/20auto-upgrades > /etc/apt/apt.conf.d/20auto-upgrades
-
 	echo "Setting sources.list repositories"
 	cat configs/sources.list > /etc/apt/sources.list
 	sudo apt update -y
