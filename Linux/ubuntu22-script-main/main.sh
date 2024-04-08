@@ -224,8 +224,8 @@ passwords()
 	echo "change all user passwords"
 	i=0
 	for user in $(cat users.txt); do
-		passwd -q -x 85 $user > /dev/null;
-		passwd -q -n 15 $user > /dev/null;
+		passwd -x 85 $user > /dev/null;
+		passwd -n 15 $user > /dev/null;
 		if [ "$i" -ne 0 ]; then
 			echo $user':CyberPatriot!!123' | chpasswd;
 		fi
