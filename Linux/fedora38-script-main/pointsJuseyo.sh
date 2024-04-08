@@ -302,6 +302,7 @@ misc()
   	echo configs/audit.rules > /etc/audit/audit.rules
  	echo 0 > /proc/sys/kernel/unprivileged_userns_clone
 	cat configs/sysctl.conf > /etc/sysctl.conf
+	cat configs/secure.conf > /etc/modprobe.d/secure.conf;
 	sysctl -ep
 	rm -f /usr/lib/gvfs/gvfs-trash
 	rm -f /usr/lib/svfs/*trash
