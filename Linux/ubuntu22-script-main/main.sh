@@ -55,7 +55,7 @@ backups() {
 
     declare -A dirs
     dirs[etc]="/etc"
-	dirs[home]="/home"
+	#dirs[home]="/home"
     dirs[www]="/var/www"
     dirs[log]="/var/log"
 
@@ -106,34 +106,32 @@ aptSettings(){
 	echo "Setting automatic update checks"
 	cat configs/10periodic > /etc/apt/apt.conf.d/10periodic
 	cat configs/20auto-upgrades > /etc/apt/apt.conf.d/20auto-upgrades
-
 	echo "Setting sources.list repositories"
 	cat configs/sources.list > /etc/apt/sources.list
-	sudo add-apt-repository ppa:apt-fast/stable
 	sudo apt update -y
 	sudo apt install curl realpath bash sudo -y
 	sudo apt update -y
 	/bin/bash -c "$(curl -sL https://git.io/vokNn)"
-	sudo sed -i '/_MAXCONPERSRV/c\_MAXCONPERSRV=20' /etc/apt-fast.conf
 }
 
 verify(){
 	echo "checking the integrity of all packages using debsums"
 	apt-get update > /dev/null
-	apt-fast install -y debsums
-	apt-fast install -y net-tools
-	apt-fast install -y apt
-	apt-fast update -y
+	apt install -y debsums
+	apt install -y net-tools
+	apt install -y apt
+	apt update -y
 	echo "fixing corrupt packages"
-	apt-fast install --reinstall $(dpkg -S $(debsums -c) | cut -d : -f 1 | sort -u) -y
-	apt-fast install --reinstall ufw libpam-pwquality procps net-tools findutils binutils coreutils -y
+	apt install --reinstall $(dpkg -S $(debsums -c) | cut -d : -f 1 | sort -u) -y
+	apt install --reinstall ufw libpam-pwquality procps net-tools findutils binutils coreutils -y
 	echo "fixing files with missing files"
 	xargs -rd '\n' -a <(sudo debsums -c 2>&1 | cut -d " " -f 4 | sort -u | xargs -rd '\n' -- dpkg -S | cut -d : -f 1 | sort -u) -- sudo apt-get install -f --reinstall --
-	apt-fast install -y ufw
-	apt-fast install -y libpam-pwquality  
- 	apt-fast install -y libpam-faillock  
-	apt-fast install -y sudo
-	apt-fast install -y firefox
+	apt install -y ufw
+	apt install -y libpam-pwquality  
+ 	apt install -y libpam-faillock  
+	apt install -y sudo
+	apt install -y vim
+	apt install -y firefox
  	chattr -ia /etc/passwd
    	chattr -ia /etc/group
 	chattr -ia /etc/shadow
@@ -219,7 +217,7 @@ checkAuthorized(){
 passwords()
 {
 	echo "settings password and locking root"
-	echo 'root:CyberPatriot!!123' | chpasswd;
+	echo 'root:$Be@ch5Sun!L0ng3rPass' | chpasswd;
 	passwd -l root;
 	echo "change all user passwords"
 	i=0
@@ -227,7 +225,7 @@ passwords()
 		passwd -x 85 $user > /dev/null;
 		passwd -n 15 $user > /dev/null;
 		if [ "$i" -ne 0 ]; then
-			echo $user':CyberPatriot!!123' | chpasswd;
+			echo $user':$Be@ch5Sun!L0ng3rPass' | chpasswd;
 		fi
 		chage --maxdays 15 --mindays 6 --warndays 7 --inactive 5 $user;
 		((i++))
@@ -346,7 +344,7 @@ misc()
 	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
 	cat configs/environment > /etc/environment
 	cat configs/control-alt-delete.conf > /etc/init/control-alt-delete.conf
-	apt-fast install -y auditd > /dev/null
+	apt install -y auditd > /dev/null
 	auditctl -e 1
  	echo configs/auditd.conf > /etc/audit/auditd.conf
   	echo configs/audit.rules > /etc/audit/audit.rules
@@ -386,9 +384,6 @@ checkPackages()
     REMOVE="john* netcat* iodine* kismet* medusa* hydra* fcrackzip* ayttm* empathy* nikto* logkeys* rdesktop* vinagre* openarena* openarena-server* minetest* minetest-server* ophcrack* crack* ldp* metasploit* wesnoth* freeciv* zenmap* knocker* bittorrent* torrent* p0f aircrack* aircrack-ng ettercap* irc* cl-irc* rsync* armagetron* postfix* nbtscan* cyphesis* endless-sky* hunt snmp* snmpd dsniff* lpd vino* netris* bestat* remmina netdiag inspircd* up.time uptimeagent chntpw* nfs* nfs-kernel-server* abc sqlmap acquisition bitcomet* bitlet* bitspirit* armitage airbase-ng* qbittorrent* ctorrent* ktorrent* rtorrent* deluge* tixati* frostwise vuse irssi transmission-gtk utorrent* exim4* crunch tomcat tomcat6 vncserver* tightvnc* tightvnc-common* tightvncserver* vnc4server* nmdb dhclient cryptcat* snort pryit gameconqueror* weplab lcrack dovecot* pop3 ember manaplus* xprobe* openra* ipscan* arp-scan* squid* heartbleeder* linuxdcpp* cmospwd* rfdump* cupp3* apparmor nis* ldap-utils prelink rsh-client rsh-redone-client* rsh-server quagga gssproxy iprutils sendmail nfs-utils ypserv tuned" 
     for package in $REMOVE; do
 		removed=$(apt purge $package -y) 
-        if [ "$removed" != "*0 to remove*" || "$removed" != "*Nothing to do*" ]; then
-            echo "$package was removed from the system"
-        fi 
     done
 	sudo apt install apparmor -y
 	sudo service apparmor start

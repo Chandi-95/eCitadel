@@ -105,6 +105,7 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
 } else { # non-DC server/client tools
     # Administrative template GPO
     (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B3281473A-F66C-423B-B824-DB24CB2B7DC5%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}.zip"))
+    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}.zip") -DestinationPath $ConfPath    
     # Local policy security template
     (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/msc-sec-template.inf", (Join-Path -Path $ConfPath -ChildPath "msc-sec-template.inf"))
     # LGPO tool

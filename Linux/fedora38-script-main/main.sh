@@ -53,7 +53,7 @@ backups() {
 
     declare -A dirs
     dirs[etc]="/etc"
-	dirs[home]="/home"
+	#dirs[home]="/home"
     dirs[www]="/var/www"
     dirs[log]="/var/log"
 
@@ -198,13 +198,13 @@ checkAuthorized(){
 passwords()
 {
 	echo "settings password and locking root"
-	echo 'root:Password1234!@#$' | chpasswd;
+	echo 'root:$Be@ch5Sun!L0ng3rPass' | chpasswd;
 	passwd -l root;
 	echo "change all user passwords"
 	for user in $(cat users.txt); do
 		passwd -x 85 $user > /dev/null;
 		passwd -n 15 $user > /dev/null;
-		echo $user:'Password1234!@#$' | chpasswd;
+		echo $user:'$Be@ch5Sun!L0ng3rPass' | chpasswd;
 		chage --maxdays 15 --mindays 6 --warndays 7 --inactive 5 $user;
 	done;
 }
@@ -271,6 +271,7 @@ filePriv()
 misc()
 {
 	dconfSettings
+	# grubSettings
 	echo "* hard core 0" > /etc/security/limits.conf
 	echo "* soft core 0" > /etc/security/limits.conf
 	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
@@ -336,8 +337,15 @@ dconfSettings()
 	gsettings set org.gnome.desktop.media-handling automount-open false
 	gsettings set org.gnome.desktop.search-providers disable-external true
 	dconf update /
-
 }
+
+grubSettings()
+{
+	cat configs/grub > /etc/default/grub
+	cat configs/40_custom > /etc/grub.d/40_custom
+	grub-mkconfig -o /boot/grub/grub.cfg
+}
+
 checkPackages()
 {
 	echo "----------- Trying to Find and Remove Malware -----------"
