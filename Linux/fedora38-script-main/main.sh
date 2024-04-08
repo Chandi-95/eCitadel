@@ -271,7 +271,7 @@ filePriv()
 misc()
 {
 	dconfSettings
-	grubSettings
+	# grubSettings
 	echo "* hard core 0" > /etc/security/limits.conf
 	echo "* soft core 0" > /etc/security/limits.conf
 	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
