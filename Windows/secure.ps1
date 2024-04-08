@@ -59,7 +59,7 @@ Set-Service WinRM -StartupType Disabled -PassThru
 Write-Host "[INFO] WinRM disabled and listeners removed"
 
 # Uninstalling Windows capabilities
-$capabilities = @("OpenSSH.Client~~~~0.0.1.0", "OpenSSH.Server~~~~0.0.1.0")
+$capabilities = @("OpenSSH.Client~~~~0.0.1.0", "OpenSSH.Server~~~~0.0.1.0", "RIP.Listener~~~~0.0.1.0", "XPS.Viewer~~~~0.0.1.0")
 foreach ($capability in $capabilities) {
     if ((Get-WindowsCapability -Online -Name $capability | Select-Object -ExpandProperty "State") -eq "Installed") {
         Remove-WindowsCapability -Online -Name $capability
@@ -68,7 +68,7 @@ foreach ($capability in $capabilities) {
 }
 
 ## Yeeting unneeded Windows features 
-$features = @("MicrosoftWindowsPowerShellV2", "MicrosoftWindowsPowerShellV2Root", "SMB1Protocol")
+$features = @("MicrosoftWindowsPowerShellV2", "MicrosoftWindowsPowerShellV2Root", "SMB1Protocol", "MultiPoint-Connector", "MultiPoint-Connector-Services", "MultiPoint-Tools", "SimpleTCP")
 foreach ($feature in $features) {
     if ((Get-WindowsOptionalFeature -Online -FeatureName $feature | Select-Object -ExpandProperty "State") -eq "Enabled") {
         Disable-WindowsOptionalFeature -Online -FeatureName $feature -norestart
