@@ -56,7 +56,7 @@ if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Serve
 # Custom tooling downloads
 $ProgressPreference = 'SilentlyContinue'
 # Audit script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/audit.ps1", (Join-Path -Path $ScriptPath -ChildPath "audit.ps1"))
+(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/audit.ps1", (Join-Path -Path $ScriptPath -ChildPath "audit.ps1"))
 # Audit policy file
 (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/auditpol.csv", (Join-Path -Path $ConfPath -ChildPath "auditpol.csv"))
 # Backups script
@@ -183,9 +183,11 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 # BCU
 (New-Object System.Net.WebClient).DownloadFile("https://github.com/Klocman/Bulk-Crap-Uninstaller/releases/download/v5.7/BCUninstaller_5.7_portable.zip", (Join-Path -Path $InputPath -ChildPath "bcu.zip"))
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] BCU downloaded" -ForegroundColor white
-# Everything
-(New-Object System.Net.WebClient).DownloadFile("https://www.voidtools.com/Everything-1.4.1.1024.x86.zip", (Join-Path -Path $InputPath -ChildPath "everything.zip"))
+# Everything + Everything CLI
+(New-Object System.Net.WebClient).DownloadFile("https://www.voidtools.com/Everything-1.4.1.1024.x64.zip", (Join-Path -Path $InputPath -ChildPath "everything.zip"))
+(New-Object System.Net.WebClient).DownloadFile("https://www.voidtools.com/ES-1.1.0.27.x64.zip", (Join-Path -Path $InputPath -ChildPath "es.zip"))
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Everything downloaded" -ForegroundColor white
+
 # Meld
 (New-Object System.Net.WebClient).DownloadFile("https://download.gnome.org/binaries/win32/meld/3.22/Meld-3.22.2-mingw.msi", (Join-Path -Path $InputPath -ChildPath "meld.msi"))
 msiexec /i (Join-Path -Path $InputPath -ChildPath "meld.msi") /quiet /qn /norestart
@@ -201,6 +203,7 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 (New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Sysmon.zip", (Join-Path -Path $InputPath -ChildPath "sm.zip"))
 (New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/AccessChk.zip", (Join-Path -Path $InputPath -ChildPath "ac.zip"))
 (New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/AccessEnum.zip", (Join-Path -Path $InputPath -ChildPath "ae.zip"))
+(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/PSTools.zip", (Join-Path -Path $InputPath -ChildPath "pst.zip"))
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] SysInternals tools downloaded" -ForegroundColor white
 # yara
 (New-Object System.Net.WebClient).DownloadFile("https://github.com/VirusTotal/yara/releases/download/v4.5.0/yara-master-2251-win64.zip", (Join-Path -Path $InputPath -ChildPath "yara.zip"))
@@ -218,7 +221,8 @@ Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "tv.zip") -De
 Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "st.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "st")
 Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "sm.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "sm")
 Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "ac.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "ac")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "ac.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "ae")
+Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "ae.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "ae")
+Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "pst.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "pst")
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] SysInternals tools extracted" -ForegroundColor white
 
 Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "hh64.zip") -DestinationPath $ToolsPath
@@ -233,5 +237,6 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "bcu.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "bcu")
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] BCU extracted" -ForegroundColor white
 Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "everything.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "everything")
+Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "es.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "everything-cli")
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Everything extracted" -ForegroundColor white
 #Chandi Fortnite
