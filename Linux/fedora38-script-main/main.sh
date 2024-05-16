@@ -55,7 +55,6 @@ backups() {
     dirs[etc]="/etc"
 	#dirs[home]="/home"
     dirs[www]="/var/www"
-    dirs[log]="/var/log"
 
     for key in "${!dirs[@]}"; do
         dir="${dirs[$key]}"
@@ -278,7 +277,7 @@ misc()
 	echo "tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0" >> /etc/fstab
 	echo "tmpfs /var/tmp tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
  	echo "proc /proc proc nosuid,nodev,noexec,hidepid=2,gid=proc 0 0" >> /etc/fstab
-	echo "LABEL=/boot /boot ext2 defaults,ro 1 2" >> /etc/fstab
+	# echo "LABEL=/boot /boot ext2 defaults,ro 1 2" >> /etc/fstab
 	prelink -ua
 	dnf remove -y prelink
 	systemctl mask ctrl-alt-del.target
