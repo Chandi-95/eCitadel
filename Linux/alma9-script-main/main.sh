@@ -11,7 +11,7 @@ unleashHell(){
     users
     firewall
     misc
-    filePriv
+    #filePriv
     mediaFiles
 }
 

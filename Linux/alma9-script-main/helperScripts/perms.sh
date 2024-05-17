@@ -17,7 +17,6 @@ chmod 600 /boot/grub2/grub.cfg
 chmod 755 /etc
 chmod 555 /usr/bin
 chmod 555 /boot
-chmod 775 /cdrom
 chmod 755 /dev
 chmod 755 /home
 chmod 755 /lib
@@ -39,9 +38,9 @@ chmod 640 /var/log/lastlog
 chown root:root /etc/sysctl.d/
 chown root:root /etc/sysctl.conf
 chown root:root /etc/passwd
-chown root:shadow /etc/shadow
+chown root:root /etc/shadow
 chown root:root /etc/group
-chown root:shadow /etc/gshadow
+chown root:root /etc/gshadow
 chown root:root /etc/sudoers.d/
 chown root:root /etc/sudoers.d/*
 chown root:root /etc/sudoers
@@ -60,7 +59,6 @@ chown root:root /boot/grub2/grub.cfg
 chown root:root /etc
 chown root:root /bin
 chown root:root /boot
-chown root:root /cdrom
 chown root:root /dev
 chown root:root /home
 chown root:root /lib
@@ -71,7 +69,6 @@ chown root:root /proc/
 chown root:root /root
 chown root:root /run
 chown root:root /sbin
-chown root:root /snap
 chown root:root /srv
 chown root:root /sys
 chown root:root /tmp
