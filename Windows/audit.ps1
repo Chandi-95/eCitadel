@@ -2,12 +2,14 @@ $VerbosePreference = "SilentlyContinue"
 [string]$cmdPath = $MyInvocation.MyCommand.Path
 $currentDir = $cmdPath.substring(0, $cmdPath.IndexOf("audit.ps1"))
 $accesscheckPath = Join-Path -Path $currentDir.Substring(0, $currentDir.IndexOf("scripts")) -ChildPath "tools\sys\ac\accesschk64.exe"
+$everythingcliPath = Join-Path -Path $currentDir.Substring(0, $currentDir.IndexOf("scripts")) -ChildPath "tools\everything-cli\es.exe"
 $firewallPath = Join-Path -Path $currentDir -ChildPath 'results\firewallaudit.txt'
 $registryPath = Join-Path -Path $currentDir -ChildPath 'results\registryaudit.txt'
 $processPath = Join-Path -Path $currentDir -ChildPath 'results\processaudit.txt'
 $servicePath = Join-Path -Path $currentDir -ChildPath 'results\serviceaudit.txt'
 $thruntingPath = Join-Path -Path $currentDir -ChildPath 'results\thruntingaudit.txt'
 $filesystemPath = Join-Path -path $currentDir -ChildPath 'results\filesystemaudit.txt'
+$filesPath = Join-Path -path $currentDir -ChildPath 'results\unauthfilesaudit.txt'
 $certPath = Join-Path -path $currentDir -ChildPath 'results\certaudit.txt'
 $artifactsPath = Join-Path $currentDir -ChildPath 'results\artifacts'
 
@@ -16,15 +18,21 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') {
     $DC = $true
 }
 
-$IIS = $false
-if (Get-Service -Name W3SVC 2>$null) {
-    $IIS = $true
-}
+# $IIS = $false
+# if (Get-Service -Name W3SVC 2>$null) {
+#     $IIS = $true
+# }
 
 $CA = $false
 if (Get-Service -Name CertSvc 2>$null) {
     $CA = $true
 }
+
+Function Invoke-Chainsaw {
+    $chainsawpath = Join-Path -Path $currentDir.Substring(0, $currentDir.IndexOf("scripts")) -ChildPath "tools\chainsaw"
+    & (Join-Path -Path $chainsawpath -ChildPath "chainsaw_x86_64-pc-windows-msvc.exe") hunt (Join-Path -Path $env:windir -ChildPath "System32\winevt\Logs") -s (Join-Path -Path $chainsawpath -ChildPath "sigma") -r (Join-Path -Path $chainsawpath -ChildPath "rules") --mapping (Join-Path -Path $chainsawpath -ChildPath "mappings\sigma-event-logs-all.yml") --output (Join-Path -Path $currentDir -ChildPath "results\chainsaw_report.txt") | Out-Null
+}
+Invoke-Chainsaw
 
 Function Get-KeysValues {
     param(
@@ -121,7 +129,7 @@ Function Start-ACLCheck {
             $owner = ($owner | Out-String).Trim()
             $interestingowner = ""
             if (($owner -ne "") -and ($owner -notlike '*TrustedInstaller') -and ($owner -notlike '*Administrators') -and ($owner -notlike '*SYSTEM')) {
-                $interestingowner += "  $owner has ownership of $Target"
+                $interestingowner += "  $owner has ownership`n"
             }
             
             # skipping first 2 lines b/c they are useless
@@ -141,17 +149,14 @@ Function Start-ACLCheck {
             if (($interestingaces -ne "") -or ($interestingowner -ne "")) {
                 if ($ServiceName) {
                     Write-Output "$ServiceName ($($Target)) ACL properties:"
-                } else {
-                    Write-Output $Target
-                }
+                } 
 
                 if ($interestingowner -ne "") {
                     Write-Output $interestingowner
-                    Write-Output ""
                 }
 
                 if ($interestingaces -ne "") {
-                    Write-Output $interestingaces
+                    Write-Output $interestingaces.TrimEnd("`n")
                 }
                 Write-Output "`n"
             }
@@ -179,11 +184,18 @@ Function Write-ProcessChecks {
     # Process List
     $processes = Get-Process -IncludeUserName
     Write-Output "----------- Process List -----------"
-    Write-Output $processes | Sort-Object Id | Format-Table Id,ProcessName,Description,UserName,Path -Wrap 
+    Write-Output $processes | Sort-Object Id | Format-Table Id,ProcessName,Description,UserName,Path -Wrap | Out-String -Width 10000
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited process information" -ForegroundColor white
     # Process ACLs
     Write-Output "----------- Interesting Process ACLs -----------"
-    $processes | Select-Object Path -Unique | ForEach-Object { Start-ACLCheck -Target $_.path }
+    $uniqueprocesses = $processes | Select-Object Path -Unique 
+    foreach ($process in $uniqueprocesses) { 
+        $aclCheck = Start-ACLCheck -Target $process.path
+        if ($aclCheck.length -gt 0) {
+            Write-Output $process.path
+            Write-Output $aclCheck
+        }
+    }
     Write-Output "`n"
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited process ACLs" -ForegroundColor white
 }
@@ -214,7 +226,7 @@ Function Find-UnquotedServicePaths {
         Write-Output "No unquoted service paths were found"
         Write-Output "`n"
     } else {
-        $foundServices | Sort-Object -Property ProcessId,Name | Format-List -Property ProcessId,State,StartMode,Name,DisplayName,StartName,PathName
+        $foundServices | Sort-Object -Property ProcessId,Name | Format-List -Property ProcessId,State,StartMode,Name,DisplayName,StartName,PathName | Out-String -Width 10000
     }
 }
 Function Find-SuspiciousServiceProperties {
@@ -287,11 +299,41 @@ Function Invoke-ServiceChecks {
         Start-ACLCheck -Target $Path -ServiceName $_.Name
     }
 }
+function Get-ServiceRecovery {
+    param(
+        $ServiceName
+    )
+    $failureActions = (Get-ItemProperty hklm:\system\currentcontrolset\services\$ServiceName).FailureActions
+    $possibleActions = 'NoAction', 'RestartService','RestartComputer','RunProgram'
+
+    try {
+        [PsCustomObject]@{
+            Service           = $ServiceName
+            FirstFailure      = $possibleActions[$failureActions[20]]
+            SecondFailure     = $possibleActions[$failureActions[28]]
+            SubsequentFailure = $possibleActions[$failureActions[36]]
+        }
+    } catch {
+        [PsCustomObject]@{
+            Service           = $ServiceName
+            FirstFailure      = ""
+            SecondFailure     = ""
+            SubsequentFailure = ""
+        }
+    }
+}
 Function Write-ServiceChecks {
     $services = Get-CimInstance -Class Win32_Service
     Write-Output "----------- Service List -----------"
     # PID, Name, DisplayName, State, StartMode, StartName, PathName
-    Write-Output $services | Select-Object @{Name="PID";Expression={$_.Processid}},State,StartMode,Name,DisplayName,StartName,PathName | Sort-Object PID | Format-Table -Property PID,Name,DisplayName,State,StartMode,StartName,PathName -Autosize -Wrap
+    $services | ForEach-Object { 
+        $recovery = Get-ServiceRecovery -ServiceName $_.Name
+        $_ | Select-Object @{Name="PID";Expression={$_.ProcessId}}, 
+                            State, StartMode, Name, DisplayName, StartName, PathName, 
+                            @{Name="FirstFailure";Expression={$recovery.FirstFailure}}, 
+                            @{Name="SecondFailure";Expression={$recovery.SecondFailure}}, 
+                            @{Name="SubsequentFailure";Expression={$recovery.SubsequentFailure}}
+    } | Sort-Object PID | Format-Table -Property PID, Name, DisplayName, State, StartMode, FirstFailure, SecondFailure, SubsequentFailure, StartName, PathName -AutoSize -Wrap | Out-String -Width 10000
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited service information" -ForegroundColor white
     # Unquoted service path check
     Write-Output "----------- Unquoted Service Paths -----------"
@@ -317,7 +359,11 @@ Function Invoke-ServiceRegistryACLCheck {
     Write-Output "----------- Interesting Service Registry Key ACLs -----------"
     Get-ChildItem 'HKLM:\System\CurrentControlSet\services\' | ForEach-Object {
         $target = $_.Name.Replace("HKEY_LOCAL_MACHINE", "hklm:")
-        Start-ACLCheck -Target $target
+        $aclCheck = Start-ACLCheck -Target $target
+        if ($aclCheck.length -gt 0) {
+            Write-Output "$target`n"
+            Write-Output $aclCheck
+        }
     }
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited service registry key ACLs" -ForegroundColor white
 }
@@ -334,7 +380,11 @@ Function Invoke-ScheduledTaskChecks {
     param (
         $tasks
     )
-    Start-ACLCheck -Target "C:\Windows\System32\Tasks"
+    $aclCheck = Start-ACLCheck -Target "C:\Windows\System32\Tasks"
+    if ($aclCheck.length -gt 0) {
+        Write-Output "C:\Windows\System32\Tasks`n"
+        Write-Output $aclCheck
+    }
     foreach ($task in $tasks) {
         $Actions = $task.Actions.Execute
         if ($Actions -ne $null) {
@@ -344,7 +394,11 @@ Function Invoke-ScheduledTaskChecks {
                 elseif ($a -like "%localappdata%*") { $a = $a.replace("%localappdata%", "$env:UserProfile\appdata\local") }
                 elseif ($a -like "%appdata%*") { $a = $a.replace("%localappdata%", $env:Appdata) }
                 $a = $a.Replace('"', '')
-                Start-ACLCheck -Target $a
+                $aclCheck = Start-ACLCheck -Target $a
+                if ($aclCheck.length -gt 0) {
+                    Write-Output "$a`n"
+                    Write-Output $aclCheck
+                }
             }
         }
     }
@@ -352,7 +406,7 @@ Function Invoke-ScheduledTaskChecks {
 Function Write-ScheduledTaskChecks {
     Write-Output "----------- Scheduled Tasks -----------"
     $tasks = Get-ScheduledTask
-    Write-Output $tasks | Select-Object State,TaskName,TaskPath,@{Name="NextRunTime";Expression={$(($_ | Get-ScheduledTaskInfo).NextRunTime)}},@{Name="Command";Expression={$_.Actions.Execute}},@{Name="Arguments";Expression={$_.Actions.Arguments}} | Format-Table -Wrap -AutoSize |  Out-String -Width 10000 #
+    Write-Output $tasks | Select-Object State,TaskName,TaskPath,@{Name="NextRunTime";Expression={$(($_ | Get-ScheduledTaskInfo).NextRunTime)}},@{Name="Command";Expression={$_.Actions.Execute}},@{Name="Arguments";Expression={$_.Actions.Arguments}} | Format-Table -Wrap -AutoSize | Out-String -Width 10000 #
     Write-Output "----------- Interesting Scheduled Tasks Properties -----------"
     Invoke-ScheduledTaskChecks -tasks $tasks
     Write-Output "`n"
@@ -429,28 +483,6 @@ Function Write-EnvironmentVariables {
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Environment variables audited" -ForegroundColor white
 }
 
-function Get-AnsibleAsyncLogs {
-    $users = Get-ChildItem -Path "C:\Users" -Directory
-    foreach ($user in $users) {
-        $LogDir = Join-Path -Path $user.FullName -ChildPath "AppData\Local\Temp\.ansible_async"
-        if (Test-Path -Path $LogDir -PathType Container) {
-            $output = ""
-            Get-ChildItem $LogDir | ForEach-Object {
-                $output += Get-Content $_.FullName
-                $output += "`n"
-            }
-            $date = Get-Date -Format "ddMMyyyy"
-            $time = Get-Date -Format "HHmm"
-            $filename = "${user.Name}_${date}_${time}_ansibleasynclog.txt"
-            $filePath = Join-Path -Path $artifactsPath -ChildPath $filename
-            $output | Out-File -FilePath $filePath
-            Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Exported Ansible async logs for user: " -ForegroundColor white -NoNewline; Write-Host $user.Name -ForegroundColor Magenta -NoNewLine; Write-Host " to artifacts folder" -ForegroundColor white
-        } else {
-            Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "ERROR" -ForegroundColor red -NoNewLine; Write-Host "] No Ansible async logs found for user: " -ForegroundColor white -NoNewline; Write-Host $user.Name -ForegroundColor Magenta
-        }
-    }
-}
-
 Function Invoke-CertificatesCheck {
     $sigcheckpath = Join-Path -Path $currentDir.Substring(0, $currentDir.IndexOf("scripts")) -ChildPath "tools\sys\sc\sigcheck64.exe"
     $output = & $sigcheckpath -accepteula -nobanner -tv * | Out-String
@@ -483,16 +515,83 @@ Function Invoke-ModifiedFilesCheck {
     param (
         $directory
     )
-    Get-ChildItem $directory -Force | Sort-Object LastWriteTime -Descending | Where-Object { $_.LastWriteTime -gt (Get-Date).AddDays(-7) }
+    & $everythingcliPath "dm:thisweek" "parent:$($directory)" -sort date-modified -dm -attribs -size -full-path-and-name -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+}
+
+Function Process-Item { 
+    param (
+        [string]$Item,
+        [bool]$IsDirectory,
+        $Queue
+    )
+
+    $result = ""
+
+    if (Test-Path $Item) {
+        $aclCheck = Start-ACLCheck -Target $Item
+        if ($IsDirectory) {
+            $modifiedFilesCheck = Invoke-ModifiedFilesCheck $Item
+            $unsignedFilesCheck = Invoke-UnsignedFilesCheck $Item
+            $adsCheck = Invoke-ADSCheck $Item
+        }
+            
+        if (($aclCheck.length -gt 0) -or ($modifiedFilesCheck.length -gt 0) -or ($unsignedFilesCheck.length -gt 0) -or ($adsCheck.length -gt 0)) {
+            $result += "----------- $Item -----------`n"
+            if ($aclCheck.length -gt 0) {
+                $result += "ACL properties:`n"
+                $result += $aclCheck
+                $result += "`n"
+            }                
+            if ($modifiedFilesCheck.length -gt 0) {
+                $result += "Items modified in the last 7 days:"
+                $result += $modifiedFilesCheck
+            }
+            if ($unsignedFilesCheck.length -gt 0) {
+                $result += "Unsigned files:`n"
+                $result += $unsignedFilesCheck
+            }
+            if ($adsCheck.length -gt 0) {
+                $result += "Alternate Data Streams:`n"
+                $result += $adsCheck
+            } 
+        }
+        if ($result.length -gt 0) {
+            $Queue.Enqueue($result)
+            Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Item checked: " -ForegroundColor white -NoNewline; Write-Host $Item -ForegroundColor Magenta
+        }
+    } else {
+        Write-Host "Path does not exist: $Item"
+    }
 }
 
 Function Write-FileAndDirectoryChecks {
+    $resultsQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+
+    $initialSessionState = [InitialSessionState]::CreateDefault()
+    Get-ChildItem function:/ | Where-Object Source -like "" | ForEach-Object {
+    $functionDefinition = Get-Content "Function:\$($_.Name)"
+    $sessionStateFunction = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry `
+        -ArgumentList $_.Name, $functionDefinition 
+    $initialSessionState.Commands.Add($sessionStateFunction)
+}
+    
+    $vars = @{currentDir=$currentDir;accesscheckPath=$accesscheckPath;everythingcliPath=$everythingcliPath}
+    ForEach ($v in $vars.Keys) {
+        $variableEntry = [System.Management.Automation.Runspaces.SessionStateVariableEntry]::new($v, $vars[$v], '')
+        $initialSessionState.Variables.Add($variableEntry)
+    }
+    $runspacePool = [runspacefactory]::CreateRunspacePool(1, [int]$env:NUMBER_OF_PROCESSORS+1,$initialSessionState,$Host)
+    $runspacePool.ApartmentState = "STA"
+    $runspacePool.Open()
+    $runspaces = @()
+
     $directories = @{
         "C:\Intel" = $true;
         "C:\Temp" = $true;
         "$env:windir" = $false;
         "$env:windir\System32" = $false;
         "$env:windir\System32\dns" = $true;
+        "C:\inetpub\wwwroot" = $true;
         "C:\Documents and Settings\All Users\Start Menu\Programs\Startup" = $true;
         "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Startup" = $true
     }
@@ -501,52 +600,111 @@ Function Write-FileAndDirectoryChecks {
         $pdir1 = Join-Path -Path $_.FullName -ChildPath "AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
         $pdir2 = Join-Path -Path "C:\Documents and Settings" -ChildPath $_.Name
         $pdir2 = Join-Path -Path $pdir2 -ChildPath "Start Menu\Programs\Startup"
-
         $directories[$pdir1] = $true
         $directories[$pdir2] = $true
     }
+
     foreach ($key in $directories.Keys) {
         if (Test-Path $key) {
-            Write-Output $key
-            Invoke-ModifiedFilesCheck $key
-            Start-ACLCheck $key
-            Invoke-UnsignedFilesCheck $key
-            Invoke-ADSCheck $key
+            $baseIsDirectory = (Get-Item -Path $key).PSIsContainer
+            Process-Item -Item $key -IsDirectory $baseIsDirectory -Queue $resultsQueue
+
             if ($directories[$key]) {
-                Get-ChildItem -Attributes !System, !ReparsePoint -Recurse -Force -Path $key -Depth 2 | ForEach-Object {
-                    $SubItem = $_.FullName
-                    if (Test-Path $SubItem) {
-                        Write-Output $SubItem 
-                        Invoke-ModifiedFilesCheck $SubItem
-                        Start-ACLCheck -Target $SubItem
-                        Invoke-UnsignedFilesCheck $SubItem
-                        Invoke-ADSCheck $SubItem
-                        Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] File was checked: " -ForegroundColor white -NoNewline; Write-Host $SubItem -ForegroundColor Magenta -NoNewLine; Write-Host " in Directory: " -NoNewLine; Write-Host $key -ForegroundColor Magenta
-                    }
-                    else{
-                        Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "ERROR" -ForegroundColor red -NoNewLine; Write-Host "] File was not checked: " -ForegroundColor white -NoNewline; Write-Host $SubItem -ForegroundColor Magenta -NoNewLine; Write-Host " in Directory: " -NoNewLine; Write-Host $key -ForegroundColor Magenta
-                    }
+                $items = Get-ChildItem -Attributes !ReparsePoint -Force -Recurse -Path $key -Depth 2
+            } else {
+                 $items = Get-ChildItem -Attributes !ReparsePoint -Force -Path $key
+            }
+
+            # Add each item to a runspace for parallel processing
+            foreach ($item in $items) {
+                $SubItem = $item.FullName
+                $IsDirectory = $item.PSIsContainer
+                $runspace = [powershell]::Create().AddScript({
+                    param ($Item, $IsDirectory, $Queue)
+                    Process-Item -Item $Item -IsDirectory $IsDirectory -Queue $Queue
+                }).AddParameter('Item', $SubItem).AddParameter('IsDirectory', $IsDirectory).AddParameter('Queue', $resultsQueue)
+
+                $runspace.RunspacePool = $runspacePool
+                $runspaces += [PSCustomObject]@{
+                    Pipe = $runspace
+                    Status = $runspace.BeginInvoke()
                 }
             }
-            Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Directory was checked: " -ForegroundColor white -NoNewline; Write-Host $key -ForegroundColor Magenta
+        } else {
+            Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "ERROR" -ForegroundColor red -NoNewLine; Write-Host "] Path not checked: " -ForegroundColor white -NoNewline; Write-Host $key -ForegroundColor Magenta
         }
-        else{
-            Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "ERROR" -ForegroundColor red -NoNewLine; Write-Host "] Directory was not checked: " -ForegroundColor white -NoNewline; Write-Host $key -ForegroundColor Magenta
-        }
+     }
+
+    while($runspaces | ? { -not $_.Status.IsCompleted }) {
+        Start-Sleep -Seconds 1
     }
+
+    # Collect results and clean up runspaces
+    foreach ($runspace in $runspaces) {
+        $runspace.Pipe.EndInvoke($runspace.Status)
+        $runspace.Pipe.Dispose()
+    }
+
+    # Write the collected results to the output file
+    $result = ""
+    while ($resultsQueue.TryDequeue([ref]$result)) {
+        Write-Output $result
+    }
+
+    # Cleanup
+    $runspacePool.Close()
+    $runspacePool.Dispose()
 }
+
+Function Invoke-UnauthorizedFilesCheck {
+    Write-Output "----------- Video Files -----------"
+    $videofiles = & $everythingcliPath "ext:3g2;3gp;avi;flv;h264;m4v;mkv;mov;mp4;mpg;mpeg;rm;swf;vob;wmv" "c:" "!c:\ProgramData\EpicGames" "!c:\windows\winsxs" "!c:\windows\systemresources" -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $videofiles
+    
+    Write-Output "----------- Audio Files -----------"
+    $audiofiles = & $everythingcliPath "ext:aac;aif;cda;flac;m4a;m4b;m4p;mid;midi;mp3;mpa;ogg;wav;wma;wpl" "c:" "!c:\ProgramData\EpicGames" "!c:\windows\winsxs" "!c:\windows\systemapps" -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $audiofiles
+
+    Write-Output "----------- Compressed Files -----------"    
+    $compressedfiles = & $everythingcliPath "ext:7z;aar;ace;alz;apk;arj;br;bz2;cab;gz;lz;lz4;lzma;lzo;pkg;tar;tgz;tlz;txz;rar;rz;z;zip" "c:" "!c:\ProgramData\EpicGames" "!c:\windows\winsxs" "!c:\windows\softwaredistribution" -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $compressedfiles
+
+    Write-Output "----------- Disk Files -----------"  
+    $diskfiles = & $everythingcliPath "ext:dmg;img;iso" "c:" "!c:\ProgramData\EpicGames" -date-modified -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $diskfiles
+
+    Write-Output "----------- Web/Database Files -----------"  
+    $internetfiles = & $everythingcliPath "ext:asp;aspx;db;css;htm;html;js;jsp;php;phar;sql;xhtml" "c:" "!c:\ProgramData\EpicGames" "!c:\windows\winsxs" "!c:\windows\systemapps" "!c:\windows\microsoft.net" -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $internetfiles
+
+    Write-Output "----------- Office/Text Files -----------"  
+    $officefiles = & $everythingcliPath "ext:csv;doc;docx;odp;ods;odt;pdf;pps;ppt;pptx;rtf;tex;txt;wks;wpd;wps;xlr;xls;xlsx" "c:" "!c:\ProgramData\EpicGames" "!c:\windows\winsxs" "!c:\windows\systemapps" -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $officefiles
+
+    Write-Output "----------- README Files -----------"  
+    $readmes = & $everythingcliPath "nowholefilename:README" "c:" "!c:\programdata\epicgames" -date-modified -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $readmes
+
+    Write-Output "----------- Code/Script Files -----------"  
+    $codefiles = & $everythingcliPath "ext:bat;c;class;cpp;cs;h;java;jar;pl;py;msi;sh;swift;wsf;vb;vbs" "c:" "!c:\ProgramData\EpicGames" "!c:\windows\winsxs" "!c:\windows\inf" "!c:\windows\microsoft.net" '!"c:\program files\meld"' -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $codefiles
+
+    Write-Output "----------- Image Files -----------"
+    $imagefiles = & $everythingcliPath "ext:ai;bmp;gif;ico;jpeg;jpg;png;ps;psd;svg;tif;tiff" "c:" "!c:\windows\winsxs" "!c:\windows\systemapps" "!c:\windows\systemresources" "!c:\windows\immersivecontrolpanel" "!c:\windows\microsoft.net" '!"c:\program files*"' "!c:\windows\web" "!c:\ProgramData\EpicGames" -date-modified -ext -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $imagefiles
+
+    Write-Output "----------- Files Matching Certain Phrases -----------"  
+    $phrases = & $everythingcliPath "nowholefilename:password|nowholefilename:creditcard|nowholefilename:payload|nowholefilename:target|nowholefilename:keylogger|nowholefilename:virus|nowholefilename:access|nowholefilename:numbers|nowholefilename:ophcrack" "c:" "!c:\programdata\epicgames" "!c:\windows\winsxs" "!c:\windows\systemapps" "!c:\windows\systemresources" "!c:\windows\immersivecontrolpanel" "!c:\windows\microsoft.net" "!c:\windows\softwaredistribution" "!c:\windows\servicing" "!c:\windows\assembly" -date-modified -size -attrib -sort date-modified -csv | ConvertFrom-Csv | Format-Table -Wrap -AutoSize | Out-String -Width 10000
+    Write-Output $phrases
+
+    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited for unauthorized files" -ForegroundColor White
+ }
 
 Function Start-PrivescCheck {
     $privescpath = Join-Path -Path $currentDir -ChildPath "PrivescCheck.ps1"
     $reportPath = Join-Path -Path $currentDir -ChildPath "results\PrivescCheck"
     . $privescpath; Invoke-PrivescCheck -Extended -Report $reportPath -Format HTML -Force | Out-Null
 }
-
-Function Invoke-Chainsaw {
-    $chainsawpath = Join-Path -Path $currentDir.Substring(0, $currentDir.IndexOf("scripts")) -ChildPath "tools\chainsaw"
-    & (Join-Path -Path $chainsawpath -ChildPath "chainsaw_x86_64-pc-windows-msvc.exe") hunt (Join-Path -Path $env:windir -ChildPath "System32\winevt\Logs") -s (Join-Path -Path $chainsawpath -ChildPath "sigma") -r (Join-Path -Path $chainsawpath -ChildPath "rules") --mapping (Join-Path -Path $chainsawpath -ChildPath "mappings\sigma-event-logs-all.yml") --output (Join-Path -Path $currentDir -ChildPath "results\chainsaw_report.txt") | Out-Null
-}
-Invoke-Chainsaw
 
 # T1546.007 - Event Triggered Execution: Netsh Helper DLL
 $keysvalues = @{
@@ -747,7 +905,7 @@ Write-KeysValues "----------- Protocol Filtering/Handling Items -----------" $ke
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited Protocol Filtering & Handling keys" -ForegroundColor white
 
 #Trust Providers 
-$keyvalues = @{
+$keysvalues = @{
     "HKLM\SOFTWARE\Microsoft\Cryptography\Providers\Trust\FinalPolicy\*" = @();
     "HKLM\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptSIPDllGetSignedDataMsg\*" = @();
     "HKLM\SOFTWARE\Microsoft\Cryptography\OID\EncodingType 0\CryptSIPDllVerifyIndirectData\*" = @();
@@ -758,7 +916,7 @@ $keyvalues = @{
 Write-KeysValues "----------- Trust Provider Items -----------" $keysvalues $registryPath
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Trust Provider Items" -ForegroundColor white
 
-$keyvalues = @{
+$keysvalues = @{
     "HKCU\Control Panel\Desktop" = @(); #Screen Saver 
     "HKLM\SYSTEM\CurrentControlSet\Control\BootVerificationProgram" = @(); #Boot Verification Program
     "HKCU\txtfile\shell\open\command" = @(); #File Extension Hijacking
@@ -773,7 +931,6 @@ $keyvalues = @{
     "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\Notify" = @(); #Winlogon Notification Package 
     "HKLM\SYSTEM\CurrentControlSet\Control\LsaExtensionConfig\LsaSrv" = @(); #LSA Extension
     "HKCU\Software\Microsoft\Command Processor\AutoRun"  = @(); #cmd.exe AutoRun
-    "HKLM\SYSTEM\CurrentControlSet\Services\DNS\Parameters"  = @(); #ServerLevelPluginDLL
     "HKLM\SOFTWARE\Microsoft\AMSI\Providers" = @(); #AMSI Providers
     "HKCR\CLSID\{52A2AAAE-085D-4187-97EA-8C30DB990436}\InprocServer32" = @(); #hhctrl.ocx
     "HKCU\Software\Microsoft\HtmlHelp Author" = @(); #.chm helper DLL
@@ -786,7 +943,7 @@ $keyvalues = @{
 Write-KeysValues "----------- Miscellaneous Items -----------" $keysvalues $registryPath
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Miscellaneous Items on key:" -ForegroundColor white; Write-Host $key -ForegroundColor Magenta
 
-$keyvalues = @{
+$keysvalues = @{
     "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SilentProcessExit\$" = @(); #Monitoring Silent Process Exit
 }
 Write-KeysValues "----------- Silent Process Exit Items -----------" $keysvalues $registryPath
@@ -811,7 +968,6 @@ Get-RecentlyRunCommands | Out-File $thruntingPath -Append
 
 Get-GroupPolicyReport
 Get-PowerShellHistory
-Get-AnsibleAsyncLogs
 Start-PrivescCheck
 
 $current = Get-Location
@@ -843,4 +999,5 @@ if ($CA) {
 
 Invoke-CertificatesCheck | Out-File $certPath -Append
 Write-FileAndDirectoryChecks | Out-File $filesystemPath -Append
+Invoke-UnauthorizedFilesCheck | Out-File $filesPath -Append
 #Chandi Fortnite
