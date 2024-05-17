@@ -7,9 +7,9 @@ chmod 644 /etc/hosts.deny
 chmod 755 /etc/sysctl.d/
 chmod 644 /etc/sysctl.conf
 chmod 644 /proc/sys/net/ipv4/ip_forward
-chmod 644 /etc/passwd
+chmod 640 /etc/passwd
 chmod 640 /etc/shadow
-chmod 644 /etc/group
+chmod 640 /etc/group
 chmod 640 /etc/gshadow
 chmod 755 /etc/sudoers.d/
 chmod 440 /etc/sudoers.d/*
@@ -39,7 +39,7 @@ chmod 755 /media
 chmod 755 /mnt
 chmod 755 /opt
 chmod 555 /proc/
-chmod 700 /root
+chmod 750 /root
 chmod 755 /run
 chmod 755 /sbin
 chmod 755 /snap
@@ -48,6 +48,9 @@ chmod 555 /sys
 chmod 1777 /tmp
 chmod 755 /usr
 chmod 755 /var/
+chmod 640 /var/log/btmp
+chmod 640 /var/log/wtmp
+chmod 640 /var/log/lastlog
 chown root:root /etc/resolvconf/resolv.conf.d/
 chown root:root /etc/resolvconf/resolv.conf.d/base
 chown root:root /etc/resolv.conf

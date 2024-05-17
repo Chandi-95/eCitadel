@@ -11,9 +11,7 @@ unleashHell(){
     users
     firewall
     misc
-    checkPackages
     filePriv
-    comparison
     mediaFiles
     lastMinuteChecks
 }
@@ -55,7 +53,7 @@ backups() {
     dirs[etc]="/etc"
     #dirs[home]="/home"
     dirs[www]="/var/www"
-    dirs[log]="/var/log"
+    #dirs[log]="/var/log"
 
     for key in "${!dirs[@]}"; do
         dir="${dirs[$key]}"
@@ -99,21 +97,21 @@ hosts(){
 
 
 verify(){
-    yum check-update > /dev/null
-    yum clean all
-    yum install -y bash
-    yum install -y curl
-    yum install -y net-tools
-    yum install -y yum
-    echo "fixing corrupt packages"
-    rpm -qf $(rpm -Va 2>&1 | grep -vE '^$|prelink:' | sed 's|.* /|/|') | sort -u
-    yum install -y firewalld
-    yum install -y pam
-    yum install -y libpwquality
-    yum install -y faillock
-    yum install -y sudo
-    yum install -y firefox
-    yum install -y e2fsprogs
+	dnf check-update > /dev/null
+	dnf clean all
+	dnf install -y bash
+	dnf install -y curl
+	dnf install -y net-tools
+	dnf install -y dnf
+	echo "fixing corrupt packages"
+	rpm -qf $(rpm -Va 2>&1 | grep -vE '^$|prelink:' | sed 's|.* /|/|') | sort -u
+	dnf install -y firewalld
+	dnf install -y pam
+ 	dnf install -y libpam_pwquality
+  	dnf install -y libpam_faillock
+	dnf install -y sudo
+	dnf install -y firefox
+ 	dnf install -y e2fsprogs
     chattr -ia /etc/passwd
     chattr -ia /etc/group
     chattr -ia /etc/shadow
@@ -252,7 +250,7 @@ configFW(){
 
 ports(){
     echo "Configuring firewall ports"
-    ports=(20 21 22 23 25 53 67 68 69 80 110 123 137 138 139 143 443 445 873 902 993 995 3389 6566 6660 6661 6662 6663 6664 6665 6666 6667 6668 6669 6679 6697 7000 8000 8008 8080 8081 8082 8088 8443 8888)
+    ports=("CHANGEME")
     for port in "${ports[@]}"; do
         firewall-cmd --permanent --add-port=$port/tcp
         firewall-cmd --permanent --add-port=$port/udp
@@ -262,7 +260,7 @@ ports(){
 
 services(){
     echo "Configuring firewall services"
-    services=("ftp" "telnet" "ssh" "smtp" "dns" "dhcp" "tftp" "http" "pop3" "ntp" "imap" "https" "microsoft-ds" "rsync" "vnc-server" "mysql" "postgresql" "samba" "squid" "libvirt" "kadmin")
+    services=("CHANGEME")
     for service in "${services[@]}"; do
         firewall-cmd --permanent --add-service=$service
     done
@@ -280,14 +278,14 @@ zones(){
 misc(){
     echo "Running miscellaneous tasks"
     denyRootSSH
-    setUmask
-    configSelinux
     auditLogs
     cronJobs
     setNTP
     grubChanges
     motdBanner
     cupsd
+	configSelinux
+	checkPackages
 }
 
 denyRootSSH(){
@@ -296,21 +294,9 @@ denyRootSSH(){
     systemctl restart sshd
 }
 
-setUmask(){
-    echo "Setting UMASK"
-    echo "umask 027" >> /etc/bashrc
-    echo "umask 027" >> /etc/profile
-}
-
-configSelinux(){
-    echo "Configuring SELinux"
-    setenforce 1
-    sed -i 's/SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config
-}
-
 auditLogs(){
     echo "Setting up audit logs"
-    yum install -y audit
+    dnf install -y audit
     systemctl start auditd
     systemctl enable auditd
     cp configs/audit.rules /etc/audit/rules.d/audit.rules
@@ -328,7 +314,7 @@ cronJobs(){
 
 setNTP(){
     echo "Setting up NTP"
-    yum install -y chrony
+    dnf install -y chrony
     systemctl start chronyd
     systemctl enable chronyd
     cp configs/chrony.conf /etc/chrony.conf
@@ -338,6 +324,7 @@ setNTP(){
 grubChanges(){
     echo "Configuring GRUB"
     cp configs/grub /etc/default/grub
+	cat configs/40_custom > /etc/grub.d/40_custom
     grub2-mkconfig -o /boot/grub2/grub.cfg
 }
 
@@ -354,55 +341,59 @@ cupsd(){
     systemctl disable cups
 }
 
-checkPackages(){
-    echo "Checking and removing unnecessary packages"
-    yum remove -y xinetd ypserv tftp tftp-server talk telnet-server rsh-server rsh ypbind
+checkPackages()
+{
+	echo "----------- Trying to Find and Remove Malware -----------"
+    REMOVE="john* netcat* iodine* kismet* medusa* hydra* fcrackzip* ayttm* empathy* nikto* logkeys* rdesktop* vinagre* openarena* openarena-server* minetest* minetest-server* ophcrack* crack* ldp* metasploit* wesnoth* freeciv* zenmap* knocker* bittorrent* torrent* p0f aircrack* aircrack-ng ettercap* irc* cl-irc* rsync* armagetron* postfix* nbtscan* cyphesis* endless-sky* hunt snmp* snmpd dsniff* lpd vino* netris* bestat* remmina netdiag inspircd* up.time uptimeagent chntpw* nfs* nfs-kernel-server* abc sqlmap acquisition bitcomet* bitlet* bitspirit* armitage airbase-ng* qbittorrent* ctorrent* ktorrent* rtorrent* deluge* tixati* frostwise vuse irssi transmission-gtk utorrent* exim4* crunch tomcat tomcat6 vncserver* tightvnc* tightvnc-common* tightvncserver* vnc4server* nmdb dhclient cryptcat* snort pryit gameconqueror* weplab lcrack dovecot* pop3 ember manaplus* xprobe* openra* ipscan* arp-scan* squid* heartbleeder* linuxdcpp* cmospwd* rfdump* cupp3* apparmor nis* ldap-utils prelink rsh-client rsh-redone-client* rsh-server quagga gssproxy iprutils sendmail nfs-utils ypserv tuned" 
+    for package in $REMOVE; do
+		removed=$(dnf remove $package -y) 
+    done
+	sudo dnf install policycoreutils policycoreutils-python-utils selinux-policy selinux-policy-devel -y
+	systemctl start selinux
 }
 
+configSelinux(){
+    echo "Configuring SELinux"
+    setenforce 1
+    sed -i 's/SELINUX=disabled/SELINUX=enforcing/' /etc/selinux/config
+}
+
+configDNF(){
+	cp configs/dnf.conf > /etc/dnf/dnf.conf
+	dnf install dnf-automatic
+	sed -i 's/apply_updates/apply_updates yes/' /etc/dnf/automatic.conf
+	systemctl enable dnf-automatic.timer
+}
 filePriv(){
-    echo "Setting file permissions"
-    chmod 640 /etc/passwd
-    chmod 640 /etc/shadow
-    chmod 640 /etc/group
-    chmod 640 /etc/gshadow
-    chmod 750 /root
-    chmod 640 /var/log/btmp
-    chmod 640 /var/log/wtmp
-    chmod 640 /var/log/lastlog
-}
-
-comparison(){
-    echo "Performing file comparisons"
-    diff /etc/passwd.orig /etc/passwd
-    diff /etc/group.orig /etc/group
-    diff /etc/shadow.orig /etc/shadow
+	bash helperScripts/perms.sh
 }
 
 mediaFiles(){
     echo "Searching for media files"
-    find / -name "*.mp3" -exec rm -f {} \;
-    find / -name "*.mp4" -exec rm -f {} \;
-    find / -name "*.avi" -exec rm -f {} \;
-    find / -name "*.mov" -exec rm -f {} \;
-    find / -name "*.jpg" -exec rm -f {} \;
-    find / -name "*.jpeg" -exec rm -f {} \;
-    find / -name "*.png" -exec rm -f {} \;
-    find / -name "*.gif" -exec rm -f {} \;
-}
-
-lastMinuteChecks(){
-    echo "Performing last minute checks"
-    getent passwd | awk -F: '$3 > 999 { print $1 }' | while read user; do
-        if ! grep -q "^$user$" users.txt && ! grep -q "^$user$" admins.txt; then
-            echo "Warning: User $user exists but is not in users.txt or admins.txt"
-        fi
-    done
-
-    getent group | awk -F: '$3 > 999 { print $1 }' | while read group; do
-        if ! grep -q "^$group$" groups.txt; then
-            echo "Warning: Group $group exists but is not in groups.txt"
-        fi
-    done
+ 	find / -name '*.mp3' -type f -delete
+    find / -name '*.mov' -type f -delete
+    find / -name '*.mp4' -type f -delete
+    find / -name '*.avi' -type f -delete
+    find / -name '*.mpg' -type f -delete
+    find / -name '*.mpeg' -type f -delete
+    find / -name '*.flac' -type f -delete
+    find / -name '*.m4a' -type f -delete
+    find / -name '*.flv' -type f -delete
+    find / -name '*.ogg' -type f -delete
+    find /home -name '*.gif' -type f -delete
+    find /home -name '*.png' -type f -delete
+    find /home -name '*.jpg' -type f -delete
+    find /home -name '*.jpeg' -type f -delete
+    find / -iname '*.m4b' -delete
+    find /home -iname '*.wav' -delete
+    find /home -iname '*.wma' -delete
+    find /home -iname '*.aac' -delete
+    find /home -iname '*.bmp' -delete
+    find /home -iname '*.img' -delete
+    find /home -iname '*.exe' -delete
+    find /home -iname '*.csv' -delete
+    find /home -iname '*.bat' -delete
+    find / -iname '*.xlsx' -delete
 }
 
 unleashHell
