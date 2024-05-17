@@ -14,7 +14,7 @@ unleashHell(){
 	misc
 	checkPackages
 	filePriv
- 	comparison
+ 	#comparison
 	mediaFiles
 	lastMinuteChecks
 }
@@ -90,7 +90,7 @@ saveApt(){
 #DNS
 dns(){
 	#hosts	// gives errors with network connections
-	service network-manager restart
+	service NetworkManager restart
 }
 
 hosts(){
@@ -107,10 +107,11 @@ aptSettings(){
 	cat configs/20auto-upgrades > /etc/apt/apt.conf.d/20auto-upgrades
 	echo "Setting sources.list repositories"
 	cat configs/sources.list > /etc/apt/sources.list
+	cp /etc/apt/sources.list.d/official-package-repositories.list /etc/apt/sources.list.d/official-package-repositories.list.bak
+	echo "" > /etc/apt/sources.list.d/official-package-repositories.list 
 	sudo apt update -y
 	sudo apt install curl realpath bash sudo -y
 	sudo apt update -y
-	/bin/bash -c "$(curl -sL https://git.io/vokNn)"
 }
 
 verify(){
@@ -147,7 +148,7 @@ users(){
 	rhosts
 	hostsEquiv
 	sudoers
-	guestAcc
+	greeterConfig
 	passPolicy
 }
 
@@ -216,7 +217,7 @@ checkAuthorized(){
 passwords()
 {
 	echo "settings password and locking root"
-	echo 'root:$Be@ch5Sun!L0ng3rPass' | chpasswd;
+	echo 'root:qwerQWER1234!@#$' | chpasswd;
 	passwd -l root;
 	echo "change all user passwords"
 	i=0
@@ -224,7 +225,7 @@ passwords()
 		passwd -x 85 $user > /dev/null;
 		passwd -n 15 $user > /dev/null;
 		if [ "$i" -ne 0 ]; then
-			echo $user':$Be@ch5Sun!L0ng3rPass' | chpasswd;
+			echo $user':qwerQWER1234!@#$' | chpasswd;
 		fi
 		chage --maxdays 15 --mindays 6 --warndays 7 --inactive 5 $user;
 		((i++))
@@ -330,7 +331,7 @@ misc()
 	systemctl mask ctrl-alt-del.target
 	systemctl daemon-reload
 	echo "tty1" > /etc/securetty
-	echo "TMOUT=300" >> /etc/profile
+	# echo "TMOUT=300" >> /etc/profile
 	echo "readonly TMOUT" >> /etc/profile
 	echo "export TMOUT" >> /etc/profile
 	echo "umask 0077" >> /etc/profile
@@ -382,7 +383,7 @@ checkPackages()
     echo "----------- Trying to Find and Remove Malware -----------"
     REMOVE="john* netcat* iodine* kismet* medusa* hydra* fcrackzip* ayttm* empathy* nikto* logkeys* rdesktop* vinagre* openarena* openarena-server* minetest* minetest-server* ophcrack* crack* ldp* metasploit* wesnoth* freeciv* zenmap* knocker* bittorrent* torrent* p0f aircrack* aircrack-ng ettercap* irc* cl-irc* rsync* armagetron* postfix* nbtscan* cyphesis* endless-sky* hunt snmp* snmpd dsniff* lpd vino* netris* bestat* remmina netdiag inspircd* up.time uptimeagent chntpw* nfs* nfs-kernel-server* abc sqlmap acquisition bitcomet* bitlet* bitspirit* armitage airbase-ng* qbittorrent* ctorrent* ktorrent* rtorrent* deluge* tixati* frostwise vuse irssi transmission-gtk utorrent* exim4* crunch tomcat tomcat6 vncserver* tightvnc* tightvnc-common* tightvncserver* vnc4server* nmdb dhclient cryptcat* snort pryit gameconqueror* weplab lcrack dovecot* pop3 ember manaplus* xprobe* openra* ipscan* arp-scan* squid* heartbleeder* linuxdcpp* cmospwd* rfdump* cupp3* apparmor nis* ldap-utils prelink rsh-client rsh-redone-client* rsh-server quagga gssproxy iprutils sendmail nfs-utils ypserv tuned" 
     for package in $REMOVE; do
-		removed=$(apt purge $package -y) 
+		removed=$(apt-get purge $package -y) 
     done
 	sudo apt install apparmor -y
 	sudo service apparmor start
