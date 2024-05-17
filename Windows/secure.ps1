@@ -51,13 +51,6 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows\WinRM\Service" /v AllowUnencry
 net start WinRM
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] WinRM secured and restarted" -ForegroundColor white 
 
-# Disabling WinRM
-Disable-PSRemoting -Force
-Remove-Item -Path WSMan:\Localhost\listener\listener* -Recurse
-Stop-Service WinRM -PassThru
-Set-Service WinRM -StartupType Disabled -PassThru
-Write-Host "[INFO] WinRM disabled and listeners removed"
-
 # Uninstalling Windows capabilities
 $capabilities = @("OpenSSH.Client~~~~0.0.1.0", "OpenSSH.Server~~~~0.0.1.0", "RIP.Listener~~~~0.0.1.0", "XPS.Viewer~~~~0.0.1.0")
 foreach ($capability in $capabilities) {
@@ -106,8 +99,8 @@ if ($DC) {
     # TODO: Fix for correct GPOs
     ## Importing domain GPOs
     Import-GPO -BackupId "065414B1-7553-477D-A047-5169D6A5D587" -TargetName "wildcard-domain-policies" -CreateIfNeeded -Path $ConfPath
-    Import-GPO -BackupId "2FF38BB4-4B44-44FE-9E95-5426EC5EE2C7" -TargetName "wildcard-dc-policies" -CreateIfNeeded -Path $ConfPath
-    Import-GPO -BackupId "3281473A-F66C-423B-B824-DB24CB2B7DC5" -TargetName "wildcard-admin-templates" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "09D1DE45-0C25-4975-97F9-9197976B322D" -TargetName "wildcard-dc-policies" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4" -TargetName "wildcard-admin-templates" -CreateIfNeeded -Path $ConfPath
     
     $distinguishedName = (Get-ADDomain -Identity (Get-ADDomain -Current LocalComputer).DNSRoot).DistinguishedName
     New-GPLink -Name "wildcard-domain-policies" -Target $distinguishedName -Order 1
@@ -121,7 +114,7 @@ if ($DC) {
     
     # Importing local GPO
     $LGPOPath = Join-Path -Path $rootDir -ChildPath "tools\LGPO_30\LGPO.exe"
-    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{3281473A-F66C-423B-B824-DB24CB2B7DC5}") 
+    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}") 
     
     gpupdate /force
 }
@@ -995,14 +988,6 @@ if ($DC) {
     # CVE-2021-42287/CVE-2021-42278 (SamAccountName / nopac)
     Set-ADDomain -Identity $env:USERDNSDOMAIN -Replace @{"ms-DS-MachineAccountQuota"="0"} | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] nopac mitigations in place" -ForegroundColor white
-
-    # set these settings to 2 to enable them always
-    # Enforcing LDAP server signing
-    reg add "HKLM\System\CurrentControlSet\Services\NTDS\Parameters" /v "LDAPServerIntegrity" /t REG_DWORD /d 2 /f | Out-Null
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Enabled enforcement of signing for LDAP server" -ForegroundColor white
-    # Enabling extended protection for LDAP authentication
-    reg add "HKLM\System\CurrentControlSet\Services\NTDS\Parameters" /v LdapEnforceChannelBinding /t REG_DWORD /d 2 /f | Out-Null
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Enabled extended protection for LDAP authentication" -ForegroundColor white
 
     # Only allowing DSRM Administrator account to be used when ADDS is stopped 
     reg add "HKLM\System\CurrentControlSet\Control\Lsa" /v DsrmAdminLogonBehavior /t REG_DWORD /d 1 /f | Out-Null
