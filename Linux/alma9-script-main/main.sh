@@ -192,13 +192,13 @@ checkAuthorized(){
 
 passwords(){
     echo "settings password and locking root"
-    echo 'root:$Be@ch5Sun!L0ng3rPass' | chpasswd;
+    echo 'root:qwerQWER1234!@#$' | chpasswd;
     passwd -l root;
     echo "change all user passwords"
     for user in $(cat users.txt); do
         passwd -x 85 $user > /dev/null;
         passwd -n 15 $user > /dev/null;
-        echo $user:'$Be@ch5Sun!L0ng3rPass' | chpasswd;
+        echo $user:'qwerQWER1234!@#$' | chpasswd;
         chage --maxdays 15 --mindays 6 --warndays 7 --inactive 5 $user;
     done;
 }
@@ -217,6 +217,9 @@ extensions(){
     find / -name ".shosts" -exec rm -rf {} \;
     find / -name ".netrc" -exec rm -rf {} \;
     find / -name ".forward" -exec rm -rf {} \;
+	find / -name ".hosts.equiv" -exec rm -rf {} \;
+	find / -name ".shosts.equiv" -exec rm -rf {} \;
+
 }
 
 sudoers(){
@@ -232,7 +235,8 @@ passPolicy(){
     echo "configuring password policies"
     cp configs/system-auth /etc/pam.d/system-auth
     cp configs/login.defs /etc/login.defs
-    cp configs/limits.conf /etc/security/limits.conf
+    echo "* hard core 0" > /etc/security/limits.conf
+	echo "* soft core 0" > /etc/security/limits.conf
 }
 
 #FIREWALL
@@ -285,6 +289,10 @@ misc(){
     motdBanner
     cupsd
 	configSelinux
+	configDNF
+	configFstab
+	greeterConfig
+	miscFiles
 	checkPackages
 }
 
@@ -359,11 +367,46 @@ configSelinux(){
 }
 
 configDNF(){
+	echo "Setting configurations for DNF"
 	cp configs/dnf.conf > /etc/dnf/dnf.conf
 	dnf install dnf-automatic
-	sed -i 's/apply_updates/apply_updates yes/' /etc/dnf/automatic.conf
+	cp configs/automatic.conf /etc/dnf/automatic.conf
 	systemctl enable dnf-automatic.timer
 }
+
+configFstab(){
+	echo "editing /etc/fstab configuration"
+	echo "tmpfs /run/shm tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
+	echo "tmpfs /tmp tmpfs defaults,rw,nosuid,nodev,noexec,relatime 0 0" >> /etc/fstab
+	echo "tmpfs /var/tmp tmpfs defaults,nodev,noexec,nosuid 0 0" >> /etc/fstab
+ 	echo "proc /proc proc nosuid,nodev,noexec,hidepid=2,gid=proc 0 0" >> /etc/fstab
+}
+
+greeterConfig(){
+	echo "Setting configurations for GDM"
+	cat configs/custom.conf > /etc/gdm3/custom.conf
+}
+
+miscFiles(){
+	cp configs/sysctl.conf /etc/sysctl.conf
+	cp configs/secure.conf /etc/modprobe.d/secure.conf
+	sysctl -ep
+	update-crypto-policies --set DEFAULT
+  	echo "+VERS-ALL:-VERS-DTLS0.9:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1:-VERS-DTLS1.0" >> /etc/crypto-policies/back-ends/gnutls.config
+   	echo "include /etc/crypto-policies/back-ends/libreswan.config" >> /etc/ipsec.conf
+	echo "tty1" > /etc/securetty
+	echo "TMOUT=900" >> /etc/profile
+	echo "readonly TMOUT" >> /etc/profile
+	echo "export TMOUT" >> /etc/profile
+ 	echo "declare -xr TMOUT=900" > /etc/profile.d/tmout.sh
+	echo "" > /etc/updatedb.conf
+	echo "blacklist usb-storage" >> /etc/modprobe.d/blacklist.conf
+	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
+	cp configs/environment /etc/environment
+	cp configs/control-alt-delete.conf /etc/init/control-alt-delete.conf
+	echo 0 > /proc/sys/kernel/unprivileged_userns_clone
+}
+
 filePriv(){
 	bash helperScripts/perms.sh
 }

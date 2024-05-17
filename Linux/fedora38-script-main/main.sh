@@ -197,13 +197,13 @@ checkAuthorized(){
 passwords()
 {
 	echo "settings password and locking root"
-	echo 'root:$Be@ch5Sun!L0ng3rPass' | chpasswd;
+	echo 'root:qwerQWER1234!@#$' | chpasswd;
 	passwd -l root;
 	echo "change all user passwords"
 	for user in $(cat users.txt); do
 		passwd -x 85 $user > /dev/null;
 		passwd -n 15 $user > /dev/null;
-		echo $user:'$Be@ch5Sun!L0ng3rPass' | chpasswd;
+		echo $user:'qwerQWER1234!@#$' | chpasswd;
 		chage --maxdays 15 --mindays 6 --warndays 7 --inactive 5 $user;
 	done;
 }
