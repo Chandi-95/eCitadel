@@ -259,7 +259,7 @@ configFW(){
 
 ports(){
     echo "Configuring firewall ports"
-    ports=("CHANGEME")
+    ports=(21 22 80 443 3306)
     for port in "${ports[@]}"; do
         firewall-cmd --permanent --add-port=$port/tcp
         firewall-cmd --permanent --add-port=$port/udp
@@ -269,7 +269,7 @@ ports(){
 
 services(){
     echo "Configuring firewall services"
-    services=("CHANGEME")
+    services=("ftp" "ssh" "http" "https" "mysql")
     for service in "${services[@]}"; do
         firewall-cmd --permanent --add-service=$service
     done
@@ -310,7 +310,7 @@ denyRootSSH(){
 auditLogs(){
     echo "Setting up audit logs"
     dnf install -y audit
-    systemctl start auditd
+    service auditd start 
     systemctl enable auditd
     cp configs/audit.rules /etc/audit/rules.d/audit.rules
     systemctl restart auditd
@@ -407,6 +407,7 @@ miscFiles(){
 	echo "blacklist usb-storage" >> /etc/modprobe.d/blacklist.conf
 	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
 	cp configs/environment /etc/environment
+    echo 0 > /proc/sys/net/ipv4/ip_forward
 }
 
 filePriv(){
