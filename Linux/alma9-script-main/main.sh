@@ -131,7 +131,7 @@ users(){
 }
 
 configCmds(){
-    cat configs/adduser.conf > /etc/default/useradd
+    cat configs/useradd > /etc/default/useradd
 }
 
 #Creates all required users and deletes those that aren't
@@ -234,6 +234,7 @@ sudoers(){
 passPolicy(){
     echo "configuring password policies"
     cp configs/system-auth /etc/pam.d/system-auth
+    cp configs/password-auth /etc/pam.d/password-auth
     cp configs/login.defs /etc/login.defs
     echo "* hard core 0" > /etc/security/limits.conf
 	echo "* soft core 0" > /etc/security/limits.conf
@@ -338,7 +339,7 @@ grubChanges(){
 
 motdBanner(){
     echo "Setting up MOTD and issue banner"
-    cp configs/motd /etc/motd
+    echo "" > /etc/motd
     cp configs/issue /etc/issue
     cp configs/issue.net /etc/issue.net
 }
