@@ -23,7 +23,7 @@ chmod 755 /etc/rc.local
 chmod 755 /etc/grub.d/
 chmod 600 /etc/securetty
 chmod 644 /etc/security/limits.conf
-chmod 664 /etc/fstab
+chmod 644 /etc/fstab
 chmod 644 /etc/updatedb.conf
 chmod 644 /etc/modprobe.d/blacklist.conf
 chmod 644 /etc/environment

@@ -362,7 +362,6 @@ checkPackages()
 		removed=$(dnf remove $package -y) 
     done
 	sudo dnf install selinux-policy-targeted -y
-	systemctl start selinux
 }
 
 configSelinux(){
@@ -374,7 +373,7 @@ configSelinux(){
 configDNF(){
 	echo "Setting configurations for DNF"
 	cp configs/dnf.conf /etc/dnf/dnf.conf
-	dnf install dnf-automatic
+	dnf install dnf-automatic -y
 	cp configs/automatic.conf /etc/dnf/automatic.conf
 	systemctl enable dnf-automatic.timer
 }
