@@ -14,6 +14,10 @@ try {
     Write-Host "[ERROR] Unable to get list of users"
     exit 1
 }
+if ($AllowUsers.length -lt 2) {
+    Write-Host "[ERROR] User list is suspiciously small" -ForegroundColor Red
+    exit 1
+}
 
 $DC = $false
 if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') {
