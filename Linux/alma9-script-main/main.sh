@@ -13,7 +13,6 @@ unleashHell(){
     misc
     filePriv
     mediaFiles
-    lastMinuteChecks
 }
 
 #STARTER
@@ -357,7 +356,7 @@ checkPackages()
     for package in $REMOVE; do
 		removed=$(dnf remove $package -y) 
     done
-	sudo dnf install policycoreutils policycoreutils-python-utils selinux-policy selinux-policy-devel -y
+	sudo dnf install selinux-policy-targeted -y
 	systemctl start selinux
 }
 
@@ -369,7 +368,7 @@ configSelinux(){
 
 configDNF(){
 	echo "Setting configurations for DNF"
-	cp configs/dnf.conf > /etc/dnf/dnf.conf
+	cp configs/dnf.conf /etc/dnf/dnf.conf
 	dnf install dnf-automatic
 	cp configs/automatic.conf /etc/dnf/automatic.conf
 	systemctl enable dnf-automatic.timer
@@ -385,7 +384,7 @@ configFstab(){
 
 greeterConfig(){
 	echo "Setting configurations for GDM"
-	cat configs/custom.conf > /etc/gdm3/custom.conf
+	cat configs/custom.conf > /etc/gdm/custom.conf
 }
 
 miscFiles(){
@@ -404,8 +403,6 @@ miscFiles(){
 	echo "blacklist usb-storage" >> /etc/modprobe.d/blacklist.conf
 	echo "install usb-storage /bin/false" > /etc/modprobe.d/usb-storage.conf
 	cp configs/environment /etc/environment
-	cp configs/control-alt-delete.conf /etc/init/control-alt-delete.conf
-	echo 0 > /proc/sys/kernel/unprivileged_userns_clone
 }
 
 filePriv(){
