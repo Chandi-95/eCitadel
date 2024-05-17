@@ -80,6 +80,10 @@ saveLogs(){
     cp -r /var/log varLogBackups
 }
 
+saveRepos(){
+    cp -r /etc/yum.repos.d yumRepoBackups
+}
+
 #DNS
 dns(){
     # hosts // commented because it was breaking connections
@@ -96,6 +100,7 @@ hosts(){
 
 
 verify(){
+    cp -TR configs/repos /etc/yum.repos.d
 	dnf check-update > /dev/null
 	dnf clean all
 	dnf install -y bash
