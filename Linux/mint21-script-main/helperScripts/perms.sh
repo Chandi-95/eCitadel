@@ -35,7 +35,7 @@ chmod 664 /etc/fstab
 chmod 644 /etc/updatedb.conf
 chmod 644 /etc/modprobe.d/blacklist.conf
 chmod 644 /etc/environment
-chmod 600 /boot/grub2/grub.cfg
+chmod 600 /boot/grub/grub.cfg
 chmod 755 /etc
 chmod 755 /bin
 chmod 755 /boot
@@ -94,7 +94,7 @@ chown root:root /etc/fstab
 chown root:root /etc/updatedb.conf
 chown root:root /etc/modprobe.d/blacklist.conf
 chown root:root /etc/environment
-chown root:root /boot/grub2/grub.cfg
+chown root:root /boot/grub/grub.cfg
 chown root:root /etc
 chown root:root /bin
 chown root:root /boot

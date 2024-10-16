@@ -359,7 +359,7 @@ misc()
 	sudo find /root -iname 'user*' -delete
 	sudo find / -iname 'users.csv' -delete
 	sudo find / -iname 'user.csv' -delete
-	find / -name *.netrc -type f -delete
+	find / -name *.netrc -type f -delete 
 	sudo rm -f /usr/share/wordpress/info.php
 	sudo rm -f /usr/share/wordpress/wp-admin/webroot.php
 	sudo rm -f /usr/share/wordpress/index.php
