@@ -22,7 +22,7 @@ unleashHell(){
 starter(){
 	checkCredentials
 	backups
-	saveLogs
+	#saveLogs
 	aliases
 }
 
