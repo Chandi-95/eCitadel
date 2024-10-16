@@ -23,7 +23,7 @@ unleashHell(){
 starter(){
 	checkCredentials
 	backups
-	saveLogs
+	# saveLogs
 	saveApt
 	aliases
 }

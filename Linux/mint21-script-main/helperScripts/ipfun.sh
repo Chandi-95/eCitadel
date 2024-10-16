@@ -76,6 +76,8 @@ $IPT -A INPUT -p tcp --dport 22 -j ACCEPT
 # SSH
 $IPT -A OUTPUT -p tcp --dport 22 -j ACCEPT
 
+$IPT -A INPUT -p tcp -m multiport --dports 80,443 -s 10.120.0.111 -j ACCEPT
+$IPT -A OUTPUT -p tcp -m multiport --sports 80,443 -d 10.120.0.111 -j ACCEPT"
 
 $IPT -A INPUT -j DROP
 $IPT -A OUTPUT -j DROP
