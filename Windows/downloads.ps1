@@ -220,6 +220,7 @@ $ghSources = @(
         Endpoint = @(
             "CCDC-RIT/Hivestorm/main/Windows/audit.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/inventory.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/report.css",
             "CCDC-RIT/Hivestorm/main/Windows/zookeeper.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/secure.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/logging.ps1",
