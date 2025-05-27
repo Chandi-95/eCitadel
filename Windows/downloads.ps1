@@ -1,5 +1,7 @@
 # Objective: downloads scripts/tools needed
 
+# TODO: fix missing files not being downloaded (create job after adding all files?) run installers
+
 # Workaround for older Windows Versions (need NET 4.5 or above)
 # Load zip assembly: [System.Reflection.Assembly]::LoadWithPartialName("System.IO.Compression.FileSystem") | Out-Null
 # Unzip file: [System.IO.Compression.ZipFile]::ExtractToDirectory($pathToZip, $targetDir)
@@ -9,15 +11,21 @@
 # *-WindowsOptionalFeature - Featuers under Control Panel > "Turn Windows features on or off" (apparently this is compatible with Windows Server)
 
 param (
-    [string]$Path = $(throw "-Path is required.")
+    [Parameter(mandatory=$true)]
+    [string]$Path
 )
+
+# fallbacks
+[Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # somehow this block verifies if the path is legit
 $ErrorActionPreference = "Stop"
 [ValidateScript({
     if(-not (Test-Path -Path $_ -PathType Container))
     {
-        Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "ERROR" -ForegroundColor red -NoNewLine; Write-Host "] Invalid path" -ForegroundColor white
+        Write-Host "[" -ForegroundColor white -NoNewLine; 
+        Write-Host "ERROR" -ForegroundColor red -NoNewLine; 
+        Write-Host "] Invalid path" -ForegroundColor white
         break
     }
     $true
@@ -25,95 +33,429 @@ $ErrorActionPreference = "Stop"
 $InputPath = $Path
 Set-Location -Path $InputPath | Out-Null
 
-# Creating all the directories
-$ErrorActionPreference = "Continue"
-New-Item -Path $InputPath -Name "scripts" -ItemType "directory" | Out-Null
-New-Item -Path $InputPath -Name "installers" -ItemType "directory" | Out-Null
-New-Item -Path $InputPath -Name "tools" -ItemType "directory" | Out-Null
-$ScriptPath = Join-Path -Path $InputPath -ChildPath "scripts"
-$SetupPath = Join-Path -Path $InputPath -ChildPath "installers"
-$ToolsPath = Join-Path -Path $InputPath -ChildPath "tools"
+# overengineered class for managing downloads
+class DownloadJob {
+    [string]$Type
+    [psobject]$Source
+    [bool]$NeedsExtraction
+    [string]$ExtractTo
 
-New-Item -Path $ScriptPath -Name "conf" -ItemType "directory" | Out-Null
-New-Item -Path $ScriptPath -Name "results" -ItemType "directory" | Out-Null
-$ConfPath = Join-Path -Path $ScriptPath -ChildPath "conf"
-$ResultsPath = Join-Path -Path $ScriptPath -ChildPath "results"
+    [System.Collections.Generic.List[System.Threading.Tasks.Task]]$Tasks
+    [System.Collections.Generic.List[string]]$DownloadedFiles
 
-New-Item -Path $ResultsPath -Name "artifacts" -ItemType "directory" | Out-Null
-New-Item -Path $ToolsPath -Name "sys" -ItemType "directory" | Out-Null
-$SysPath = Join-Path -Path $ToolsPath -ChildPath "sys"
+    DownloadJob([string]$Type, [psobject]$Source) {
+        $this.Type = $Type
+        $this.Source = $Source
+        $this.Tasks = [System.Collections.Generic.List[System.Threading.Tasks.Task]]::new()
+        $this.DownloadedFiles = [System.Collections.Generic.List[string]]::new()
+    }
 
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Directories created" -ForegroundColor white
+    [void]DownloadAllAsync([string]$RootDir) {
+        $urlsToDownload = [System.Collections.ArrayList]::new()
+        switch ($this.Type) {
+            'GitHubRelease' {
+                foreach ($repoEntry in $this.Source) {
+                    $repo = $repoEntry.Repo
+                    $keywords = $repoEntry.Keywords
+                    $subDir = $repoEntry.Path
+                    Write-Host "🔍 GitHub Release: $repo"
+                    $assets = $this.GetMatchingRelease($repo, $keywords)
+                    foreach ($url in $assets) {
+                        $urlsToDownload.Add([pscustomobject]@{
+                            Url  = $url
+                            Path = $subDir
+                        }) | Out-Null
+                    }
+                }
+            }
+            'RawGitHub' {
+                foreach ($entry in $this.Source) {
+                    foreach ($path in $entry.Endpoint) {
+                        $urlsToDownload.Add([PSCustomObject]@{
+                            Url = "https://raw.githubusercontent.com/$path"
+                            Path = $entry.Path
+                        }) | Out-Null
+                    }
+                }
+            }
+            'GistGitHub' {
+                foreach ($entry in $this.Source) {
+                    foreach ($path in $entry.Endpoint) {
+                        $urlsToDownload.Add([PSCustomObject]@{
+                            Url = "https://gist.githubusercontent.com/$path"
+                            Path = $entry.Path
+                        }) | Out-Null
+                    }
+                }
+            }
+            'BaseUrl' {
+                foreach ($entry in $this.Source) {
+                    foreach ($file in $entry.Files) {
+                        $urlsToDownload.Add([pscustomobject]@{
+                            Url  = "$($entry.BaseUrl)$file"
+                            Path = $entry.Path
+                        }) | Out-Null
+                    }
+                }
+            }
+            'DirectUrl' {
+                foreach ($entry in $this.Source) {
+                    $urlsToDownload.Add([pscustomobject]@{
+                        Url  = $entry.Url
+                        Path = $entry.Path
+                    }) | Out-Null
+                }
+            }
+            default {
+                Write-Warning "Unknown source type: $($this.Source.Type)"
+            }
+        }
+
+        foreach ($item in $urlsToDownload) {
+            $url = $item.Url    
+            $subDir = $item.Path
+            $targetDir = if ($subDir) {
+                Join-Path $RootDir $subDir
+            } else {
+                $RootDir
+            }
+
+            if (-Not (Test-Path $targetDir)) {
+                New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+            }
+
+            $fileName = Split-Path $url -Leaf
+            $destPath = Join-Path $targetDir $fileName
+
+            if (Test-Path $destPath) {
+                Write-Host " Already exists: $fileName"
+                continue
+            }
+
+            $webClient = New-Object System.Net.WebClient
+
+            Write-Host "Starting download: $url"
+            $task = $webClient.DownloadFileTaskAsync($url, $destPath)
+            $this.Tasks.Add($task)
+            $this.DownloadedFiles.Add($destPath)
+        }
+    }
+
+    [System.Collections.ArrayList]GetMatchingRelease([string]$repo, [string[]]$keywords) {
+        $apiUrl = "https://api.github.com/repos/$($repo)/releases/latest"
+        $headers = @{ "User-Agent" = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36" }
+        try {
+            $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers
+            $matchedAssets = [System.Collections.ArrayList]::new()
+            foreach ($asset in $response.assets) {
+                $name = $asset.name
+                # Fuzzy match logic: file must contain ALL keywords (case-insensitive)
+                $match = $true
+                foreach ($keyword in $keywords) {
+                    if ($name -notlike "*$keyword*") {
+                        $match = $false
+                        break
+                    }
+                }
+                if ($match) {
+                    $matchedAssets.Add($asset.browser_download_url) | Out-Null
+                }
+            }
+            return $matchedAssets
+        } catch {
+            throw "Failed to fetch GitHub release: $_"
+            return [System.Collections.ArrayList]::new()
+        }
+    }
+
+    [void]WaitForCompletion() {
+        Write-Host "⏳ Waiting for $($this.Tasks.Count) downloads..."
+        try {
+            [System.Threading.Tasks.Task]::WaitAll($this.Tasks.ToArray())
+        } catch [System.AggregateException] {
+            Write-Host "Caught an aggregate exception:"
+
+            # This will enumerate over any inner exceptions and print their details
+            foreach($innerEx in $_.Exception.InnerExceptions) {
+                Write-Host "=== Inner Exception ==="
+                Write-Host $innerEx.Message
+                Write-Host $innerEx.StackTrace
+            }
+        }
+        Write-Host "✅ Finished downloading $($this.Tasks.Count) items"
+    }
+
+    [void]ExtractDownloadedFiles([string]$RootDir) {
+        foreach ($file in $this.DownloadedFiles) {
+            if ($file -like "*.zip") {
+                $baseName = [System.IO.Path]::GetFileNameWithoutExtension($file)
+                $targetDir = if ($this.ExtractTo) {
+                    Join-Path -Path $RootDir -ChildPath $this.ExtractTo | Join-Path -ChildPath $baseName
+                } else {
+                    Join-Path -Path $RootDir -ChildPath $baseName
+                }
+
+                if (-not (Test-Path $targetDir)) {
+                    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+                }
+
+                try {
+                    Write-Host "🗂️  Extracting $file to $targetDir"
+                    Expand-Archive -Path $file -DestinationPath $targetDir
+                    Move-Item -Path $file -Destination (Join-Path -Path $RootDir -ChildPath "zipped")
+                } catch {
+                    Write-Warning "❌ Failed to extract $($file): $_"
+                }
+            }
+        }
+    }
+}
+
+$ErrorActionPreference = "SilentlyContinue"
+
+$jobs = [System.Collections.ArrayList]::new()
+
+$ghSources = @(
+    @{
+        Endpoint = @(
+            "CCDC-RIT/Hivestorm/main/Windows/audit.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/inventory.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/zookeeper.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/secure.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/logging.ps1",
+            "CCDC-RIT/Windows-Scripts/master/backup.ps1",
+            "CCDC-RIT/Windows-Scripts/master/command_runbook.txt",
+            "CCDC-RIT/Windows-Scripts/master/firewall.ps1",
+            "itm4n/PrivescCheck/master/PrivescCheck.ps1"
+        );
+        Path = "scripts"
+    },
+    @{
+        Endpoint = @(
+            "CCDC-RIT/Windows-Scripts/master/auditpol.csv",
+            "CCDC-RIT/Windows-Scripts/master/defender-exploit-guard-settings.xml",
+            "CCDC-RIT/Logging-Scripts/main/agent_windows.conf",
+            "olafhartong/sysmon-modular/master/sysmonconfig.xml"
+        );
+        Path = "scripts\conf"
+    }
+) | ForEach-Object { [pscustomobject]$_ }
+
+$gistSources = @(
+    @{ 
+        Endpoint = @(
+            "jaredcatkinson/23905d34537ce4b5b1818c3e6405c1d2/raw/104f630cc1dda91d4cb81cf32ef0d67ccd3e0735/Get-InjectedThread.ps1",
+            "jaredcatkinson/23905d34537ce4b5b1818c3e6405c1d2/raw/104f630cc1dda91d4cb81cf32ef0d67ccd3e0735/Stop-Thread.ps1"
+        ); 
+        Path = "scripts" 
+    }
+) | ForEach-Object { [pscustomobject]$_ }
+
+$releaseSources = @(
+    @{
+        Repo = "WithSecureLabs/chainsaw"
+        Keywords = @("all_platforms", "rules", "zip")
+        Path = ""
+    },
+    @{
+        Repo = "Klocman/Bulk-Crap-Uninstaller"
+        Keywords = @("BCUninstaller", "portable")
+        Path = ""
+    }
+) | ForEach-Object { [pscustomobject]$_ }
+
+$directSources = @(
+    @{
+        Url = "https://homeupdater.patchmypc.com/public/PatchMyPC-HomeUpdater-Portable.exe"
+        Path = "tools"
+    },
+    @{
+        Url = "https://go.microsoft.com/fwlink/?LinkId=2085155"
+        Path = "installs"
+    },
+    @{
+        Url = "https://www.binisoft.org/download/wfc6setup.exe"
+        Path = "installs"
+    },
+    @{
+        Url = "https://www.malwarebytes.com/api/downloads/mb-windows?filename=MBSetup.exe"
+        Path = "installs"
+    },
+    @{
+        Url = "https://www.cyberlock.global/downloads/InstallDefenderUISilent.exe"
+        Path = "installs"
+    },
+    @{
+        Url = "https://download.gnome.org/binaries/win32/meld/3.22/Meld-3.22.2-mingw.msi"
+        Path = "installs"
+    }
+) | ForEach-Object { [pscustomobject]$_ }
+
+$baseSources = @(
+    @{
+        BaseUrl = "https://download.sysinternals.com/files/"
+        Files = @(
+            "Autoruns.zip",
+            "ListDlls.zip",
+            "ProcessExplorer.zip",
+            "ProcessMonitor.zip", 
+            "Sigcheck.zip", 
+            "TCPView.zip",
+            "Streams.zip",
+            "Sysmon.zip",
+            "AccessChk.zip",
+            "AccessEnum.zip",
+            "PSTools.zip",
+            "Strings.zip"
+        )
+        Path = ""
+    },
+    @{
+        BaseUrl = "https://github.com/"
+        Files = @(
+            "CCDC-RIT/YaraRules/raw/refs/heads/main/Windows.zip",
+            "CCDC-RIT/YaraRules/raw/refs/heads/main/Multi.zip"
+        )
+        Path = ""
+    }
+) | ForEach-Object { [pscustomobject]$_ }
 
 # yo i hope this works
 if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Server") {
     Install-WindowsFeature -Name Bitlocker,Windows-Defender | Out-Null
     # the following feature might not exist based on the windows server version
     Install-WindowsFeature -Name Windows-Defender-GUI | Out-Null
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Bitlocker and Windows Defender installed" -ForegroundColor white
+    Write-Host "[" -ForegroundColor white -NoNewLine; 
+    Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+    Write-Host "] Bitlocker and Windows Defender installed" -ForegroundColor white
 }
 
-# Custom tooling downloads
-$ProgressPreference = 'SilentlyContinue'
-# Audit script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/audit.ps1", (Join-Path -Path $ScriptPath -ChildPath "audit.ps1"))
-# Audit policy file
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/auditpol.csv", (Join-Path -Path $ConfPath -ChildPath "auditpol.csv"))
-# Backups script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/backup.ps1", (Join-Path -Path $ScriptPath -ChildPath "backup.ps1"))
-# Command runbook
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/command_runbook.txt", (Join-Path -Path $ScriptPath -ChildPath "command_runbook.txt"))
-# Defender exploit guard settings
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/defender-exploit-guard-settings.xml", (Join-Path -Path $ConfPath -ChildPath "def-eg-settings.xml"))  
-# Firewall script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/firewall.ps1", (Join-Path -Path $ScriptPath -ChildPath "firewall.ps1"))
-# Inventory script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/inventory.ps1", (Join-Path -Path $ScriptPath -ChildPath "inventory.ps1"))
-# Logging script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Windows-Scripts/master/logging.ps1", (Join-Path -Path $ScriptPath -ChildPath "logging.ps1"))
-# Wazuh agent config file
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Logging-Scripts/main/agent_windows.conf", (Join-Path -Path $ConfPath -ChildPath "agent_windows.conf"))
-# Yara response script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Logging-Scripts/main/yara.bat", (Join-Path -Path $ScriptPath -ChildPath "yara.bat"))
-# User Management script 
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/zookeeper.ps1", (Join-Path -Path $ScriptPath -ChildPath "zookeeper.ps1"))
-# Secure baseline script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/secure.ps1", (Join-Path -Path $ScriptPath -ChildPath "secure.ps1"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] System scripts and config files downloaded" -ForegroundColor white
+# Server Core Tooling
+if ((Test-Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion") -and (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion" | Select-Object -ExpandProperty "InstallationType") -eq "Server Core") {
+    # Server Core App Compatibility FOD
+    Add-WindowsCapability -Online -Name ServerCore.AppCompatibility~~~~0.0.1.0 | Out-Null
+    Write-Host "[" -ForegroundColor white -NoNewLine; 
+    Write-Host "SUCCESS" -ForegroundColor green -NoNewLine;
+    Write-Host "] Additional MS tools installed" -ForegroundColor white
+    # Explorer++
+    $releaseSources += [PSCustomObject]@{
+        Repo = "derceg/explorerplusplus"
+        Keywords = @("explorerpp", "x64.zip")
+        Path = ""
+    }
+    # NetworkMiner
+    $directSources += [PSCustomObject]@{
+        Url = "https://netresec.com/?download=NetworkMiner"
+        Path = ""
+    }
+}
 
-# Service tooling 
+# 64-bit vs. 32-bit tooling
+if ([System.Environment]::Is64BitOperatingSystem) {
+    $releaseSources += @(
+        @{
+            Repo = "hasherezade/hollows_hunter"
+            Keywords = @("64", "exe")
+            Path = "tools"
+        },
+        @{
+            Repo = "virustotal/yara"
+            Keywords = @("yara", "win64")
+            Path = ""
+        }
+    ) | ForEach-Object { [pscustomobject]$_ }
+    $directSources += @(
+        @{
+            Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+            Path = "installs"
+        },
+        @{
+            Url = "https://www.voidtools.com/Everything-1.4.1.1027.x64.zip"
+            Path = ""
+        },
+        @{
+            Url = "https://www.voidtools.com/ES-1.1.0.27.x64.zip"
+            Path = ""
+        }
+    ) | ForEach-Object { [pscustomobject]$_ }
+    $baseSources += [PSCustomObject]@{
+        BaseUrl = "https://github.com/"
+        Files = @(
+            "rvazarkar/antipwny/raw/refs/heads/master/exe/x64/AntiPwny.exe",
+            "rvazarkar/antipwny/raw/refs/heads/master/exe/x64/ObjectListView.dll"
+        )
+        Path = "tools"
+    }
+} else {
+    $releaseSources += @(
+        @{
+            Repo = "hasherezade/hollows_hunter"
+            Keywords = @("32", "exe")
+            Path = "tools"
+        },
+        @{
+            Repo = "virustotal/yara"
+            Keywords = @("yara", "win32")
+            Path = ""
+        }
+    ) | ForEach-Object { [pscustomobject]$_ }
+    $directSources += @(
+        @{
+            Url = "https://aka.ms/vs/17/release/vc_redist.x86.exe"
+            Path = "installs"
+        },
+        @{
+            Url = "https://www.voidtools.com/Everything-1.4.1.1027.x86.zip"
+            Path = ""
+        },
+        @{
+            Url = "https://www.voidtools.com/ES-1.1.0.27.x86.zip"
+            Path = ""
+        }
+    ) | ForEach-Object { [pscustomobject]$_ }
+    $baseSources += [PSCustomObject]@{
+        BaseUrl = "https://github.com/"
+        Files = @(
+            "rvazarkar/antipwny/raw/refs/heads/master/exe/x86/AntiPwny.exe",
+            "rvazarkar/antipwny/raw/refs/heads/master/exe/x86/ObjectListView.dll"
+        )
+        Path = "tools"
+    }
+}
+
+# Service-specific tooling
 if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { # DC detection
     # RSAT tooling (AD management tools + DNS management)
     Install-WindowsFeature -Name RSAT-AD-Tools,RSAT-DNS-Server,GPMC
     # Domain, Domain Controller, and admin template GPOs 
-    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B09D1DE45-0C25-4975-97F9-9197976B322D%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{09D1DE45-0C25-4975-97F9-9197976B322D}.zip"))
-    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B065414B1-7553-477D-A047-5169D6A5D587%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{065414B1-7553-477D-A047-5169D6A5D587}.zip"))
-    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip"))
-    # Reset-KrbtgtKeyInteractive script
-    (New-Object System.Net.WebClient).DownloadFile("https://gist.githubusercontent.com/mubix/fd0c89ec021f70023695/raw/02e3f0df13aa86da41f1587ad798ad3c5e7b3711/Reset-KrbtgtKeyInteractive.ps1", (Join-Path -Path $ScriptPath -ChildPath "Reset-KrbtgtKeyInteractive.ps1"))
+    $ghSources[1].Endpoint += @(
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{09D1DE45-0C25-4975-97F9-9197976B322D}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{065414B1-7553-477D-A047-5169D6A5D587}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip"
+    )
+    # Reset-KrbtgtKeyInteractive
+    $gistSources[0].Endpoint += "mubix/fd0c89ec021f70023695/raw/02e3f0df13aa86da41f1587ad798ad3c5e7b3711/Reset-KrbtgtKeyInteractive.ps1" 
     # Pingcastle
-    (New-Object System.Net.WebClient).DownloadFile("https://github.com/vletoux/pingcastle/releases/download/3.1.0.1/PingCastle_3.1.0.1.zip", (Join-Path -Path $InputPath -ChildPath "pc.zip"))
+    $releaseSources += [PSCustomObject]@{
+        Repo = "netwrix/pingcasle"
+        Keywords = @("PingCastle", "zip")
+        Path = ""
+    } 
     # Adalanche
-    (New-Object System.Net.WebClient).DownloadFile("https://github.com/lkarlslund/Adalanche/releases/download/v2024.1.11/adalanche-windows-x64-v2024.1.11.exe", (Join-Path -Path $ToolsPath -ChildPath "adalanche.exe"))
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] DC tools downloaded" -ForegroundColor white
-    # Pingcastle, GPO extraction
-    Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "pc.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "pc") 
-    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{09D1DE45-0C25-4975-97F9-9197976B322D}.zip") -DestinationPath $ConfPath
-    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{065414B1-7553-477D-A047-5169D6A5D587}.zip") -DestinationPath $ConfPath
-    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip") -DestinationPath $ConfPath
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] DC tools extracted" -ForegroundColor white
+    $releaseSources += [PSCustomObject]@{
+        Repo = "lkarlslund/Adalanche"
+        Keywords = @("adalanche-windows", "x64", "exe")
+        Path = "tools"
+    }
 } else { # non-DC server/client tools
-    # Administrative template GPO
-    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/%7B064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4%7D.zip", (Join-Path -Path $ConfPath -ChildPath "{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip"))
-    Expand-Archive -LiteralPath (Join-Path -Path $ConfPath -ChildPath "{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip") -DestinationPath $ConfPath    
-    # Local policy security template
-    (New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/CCDC-RIT/Hivestorm/main/Windows/gpos/msc-sec-template.inf", (Join-Path -Path $ConfPath -ChildPath "msc-sec-template.inf"))
-    # LGPO tool
-    (New-Object System.Net.WebClient).DownloadFile("https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip", (Join-Path -Path $InputPath -ChildPath "lg.zip"))
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] LGPO and local policy files downloaded" -ForegroundColor white
-    # LGPO extraction
-    Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "lg.zip") -DestinationPath $ToolsPath
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] LGPO extracted" -ForegroundColor white
+    $ghSources[1].Endpoint += @(
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/msc-sec-template.inf"
+    )
+    $directSources += [PSCustomObject]@{
+        Url = "https://download.microsoft.com/download/8/5/C/85C25433-A1B0-4FFA-9429-7E023E7DA8D8/LGPO.zip"
+        Path = ""
+    }
 }
 
 if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
@@ -124,119 +466,43 @@ if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
     Install-WindowsFeature -Name RSAT-AD-PowerShell,RSAT-ADCS-Mgmt | Out-Null
     # install locksmith
     Install-Module -Name Locksmith -Scope CurrentUser | Out-Null
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Locksmith downloaded and installed" -ForegroundColor white
+    Write-Host "[" -ForegroundColor white -NoNewLine; 
+    Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+    Write-Host "] Locksmith downloaded and installed" -ForegroundColor white
 }
 
-# Server Core Tooling
-if ((Test-Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion") -and (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion" | Select-Object -ExpandProperty "InstallationType") -eq "Server Core") {
-    # Explorer++
-    (New-Object System.Net.WebClient).DownloadFile("https://github.com/derceg/explorerplusplus/releases/download/version-1.4.0-beta-2/explorerpp_x64.zip", (Join-Path -Path $InputPath -ChildPath "epp.zip"))
-    Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "epp.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "epp")
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Explorer++ downloaded and extracted" -ForegroundColor white
-    # Server Core App Compatibility FOD
-    Add-WindowsCapability -Online -Name ServerCore.AppCompatibility~~~~0.0.1.0 | Out-Null
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Additional MS tools installed" -ForegroundColor white
-    # NetworkMiner
-    (New-Object System.Net.WebClient).DownloadFile("https://netresec.com/?download=NetworkMiner", (Join-Path -Path $InputPath -ChildPath "nm.zip"))
-    Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "nm.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "nm")
-    Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] NetworkMiner downloaded and extracted" -ForegroundColor white
+New-Item -Path $InputPath -Name "zipped" -ItemType "directory" | Out-Null
+New-Item -Path (Join-Path -Path $InputPath -ChildPath "scripts") -Name "results" -ItemType "directory" | Out-Null
+New-Item -Path (Join-Path -Path $InputPath -ChildPath "scripts" | Join-Path -ChildPath "results") -Name "artifacts" -ItemType "directory" | Out-Null
+
+$jobGh = [DownloadJob]::new("RawGitHub", $ghSources)
+$jobGh.NeedsExtraction = $true
+$jobGh.ExtractTo = "scripts\conf"
+$jobs.Add($jobGh) | Out-Null
+
+$jobGist = [DownloadJob]::new("GistGitHub", $gistSources)
+$jobs.Add($jobGist) | Out-Null
+
+$jobRelease = [DownloadJob]::new("GitHubRelease", $releaseSources)
+$jobRelease.NeedsExtraction = $true
+$jobRelease.ExtractTo = "tools"
+$jobs.Add($jobRelease) | Out-Null
+
+$jobDirect = [DownloadJob]::new("DirectUrl", $directSources)
+$jobDirect.NeedsExtraction = $true
+$jobDirect.ExtractTo = "tools"
+$jobs.Add($jobDirect) | Out-Null
+
+$jobBase = [DownloadJob]::new("BaseUrl", $baseSources)
+$jobBase.NeedsExtraction = $true
+$jobBase.ExtractTo = "tools"
+$jobs.Add($jobBase) | Out-Null
+
+foreach ($job in $jobs) {
+    $job.DownloadAllAsync($InputPath)
 }
 
-# Third-party tooling for every system
-# Get-InjectedThread and Stop-Thread
-(New-Object System.Net.WebClient).DownloadFile("https://gist.githubusercontent.com/jaredcatkinson/23905d34537ce4b5b1818c3e6405c1d2/raw/104f630cc1dda91d4cb81cf32ef0d67ccd3e0735/Get-InjectedThread.ps1", (Join-Path -Path $ScriptPath -ChildPath "Get-InjectedThread.ps1"))
-(New-Object System.Net.WebClient).DownloadFile("https://gist.githubusercontent.com/jaredcatkinson/23905d34537ce4b5b1818c3e6405c1d2/raw/104f630cc1dda91d4cb81cf32ef0d67ccd3e0735/Stop-Thread.ps1", (Join-Path -Path $ScriptPath -ChildPath "Stop-Thread.ps1"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Get-InjectedThread and Stop-Thread downloaded" -ForegroundColor white
-# PrivEsc checker script
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/itm4n/PrivescCheck/master/PrivescCheck.ps1", (Join-Path -Path $ScriptPath -ChildPath "PrivescCheck.ps1"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] PrivescChecker script downloaded" -ForegroundColor white
-# chainsaw + dependency library
-$redistpath = Join-Path -Path $SetupPath -ChildPath "vc_redist.64.exe"
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/WithSecureLabs/chainsaw/releases/latest/download/chainsaw_all_platforms+rules.zip", (Join-Path -Path $InputPath -ChildPath "cs.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://aka.ms/vs/17/release/vc_redist.x64.exe", $redistpath)
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Chainsaw and C++ redist downloaded" -ForegroundColor white
-## silently installing dependency library
-& $redistpath /install /passive /norestart
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] C++ redist installed" -ForegroundColor white
-# hollows hunter
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/hasherezade/hollows_hunter/releases/latest/download/hollows_hunter64.zip", (Join-Path -Path $InputPath -ChildPath "hh64.zip"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Hollows Hunter downloaded" -ForegroundColor white
-# Wazuh agent
-(New-Object System.Net.WebClient).DownloadFile("https://packages.wazuh.com/4.x/windows/wazuh-agent-4.7.2-1.msi", (Join-Path -Path $SetupPath -ChildPath "wazuhagent.msi"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Wazuh agent installer downloaded" -ForegroundColor white
-# Basic Sysmon conf file
-(New-Object System.Net.WebClient).DownloadFile("https://raw.githubusercontent.com/olafhartong/sysmon-modular/master/sysmonconfig.xml", (Join-Path -Path $ConfPath -ChildPath "sysmon.xml"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Sysmon config downloaded" -ForegroundColor white
-# Windows Firewall Control + .NET 4.8
-$net48path = Join-Path -Path $SetupPath -ChildPath "net_installer.exe"
-(New-Object System.Net.WebClient).DownloadFile("https://www.binisoft.org/download/wfc6setup.exe", (Join-Path -Path $SetupPath -ChildPath "wfcsetup.exe"))
-(New-Object System.Net.WebClient).DownloadFile("https://go.microsoft.com/fwlink/?LinkId=2085155", $net48path)
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Windows Firewall Control and .NET 4.8 installers downloaded" -ForegroundColor white
-## silently installing .NET 4.8 library
-& $net48path /passive /norestart
-# Malwarebytes
-(New-Object System.Net.WebClient).DownloadFile("https://www.malwarebytes.com/api/downloads/mb-windows?filename=MBSetup.exe", (Join-Path -Path $SetupPath -ChildPath "MBSetup.exe"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Malwarebytes installer downloaded" -ForegroundColor white
-# PatchMyPC
-(New-Object System.Net.WebClient).DownloadFile("https://patchmypc.com/freeupdater/PatchMyPC.exe", (Join-Path -Path $ToolsPath -ChildPath "PatchMyPC.exe"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] PatchMyPC downloaded" -ForegroundColor white
-# BCU
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/Klocman/Bulk-Crap-Uninstaller/releases/download/v5.7/BCUninstaller_5.7_portable.zip", (Join-Path -Path $InputPath -ChildPath "bcu.zip"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] BCU downloaded" -ForegroundColor white
-# Everything + Everything CLI
-(New-Object System.Net.WebClient).DownloadFile("https://www.voidtools.com/Everything-1.4.1.1024.x64.zip", (Join-Path -Path $InputPath -ChildPath "everything.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://www.voidtools.com/ES-1.1.0.27.x64.zip", (Join-Path -Path $InputPath -ChildPath "es.zip"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Everything downloaded" -ForegroundColor white
-
-# Meld
-(New-Object System.Net.WebClient).DownloadFile("https://download.gnome.org/binaries/win32/meld/3.22/Meld-3.22.2-mingw.msi", (Join-Path -Path $InputPath -ChildPath "meld.msi"))
-msiexec /i (Join-Path -Path $InputPath -ChildPath "meld.msi") /quiet /qn /norestart
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Meld downloaded and installed" -ForegroundColor white
-# Sysinternals
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Autoruns.zip", (Join-Path -Path $InputPath -ChildPath "ar.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/ListDlls.zip", (Join-Path -Path $InputPath -ChildPath "dll.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/ProcessExplorer.zip", (Join-Path -Path $InputPath -ChildPath "pe.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/ProcessMonitor.zip", (Join-Path -Path $InputPath -ChildPath "pm.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Sigcheck.zip", (Join-Path -Path $InputPath -ChildPath "sc.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/TCPView.zip", (Join-Path -Path $InputPath -ChildPath "tv.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Streams.zip", (Join-Path -Path $InputPath -ChildPath "st.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/Sysmon.zip", (Join-Path -Path $InputPath -ChildPath "sm.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/AccessChk.zip", (Join-Path -Path $InputPath -ChildPath "ac.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/AccessEnum.zip", (Join-Path -Path $InputPath -ChildPath "ae.zip"))
-(New-Object System.Net.WebClient).DownloadFile("https://download.sysinternals.com/files/PSTools.zip", (Join-Path -Path $InputPath -ChildPath "pst.zip"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] SysInternals tools downloaded" -ForegroundColor white
-# yara
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/VirusTotal/yara/releases/download/v4.5.0/yara-master-2251-win64.zip", (Join-Path -Path $InputPath -ChildPath "yara.zip"))
-## yara rules
-(New-Object System.Net.WebClient).DownloadFile("https://github.com/elastic/protections-artifacts/archive/refs/heads/main.zip", (Join-Path -Path $InputPath -ChildPath "elastic.zip"))
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] YARA and YARA rules downloaded" -ForegroundColor white
-
-# Extraction
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "ar.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "ar")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "dll.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "dll")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "pe.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "pe")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "pm.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "pm")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "sc.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "sc")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "tv.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "tv")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "st.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "st")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "sm.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "sm")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "ac.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "ac")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "ae.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "ae")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "pst.zip") -DestinationPath (Join-Path -Path $SysPath -ChildPath "pst")
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] SysInternals tools extracted" -ForegroundColor white
-
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "hh64.zip") -DestinationPath $ToolsPath
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Hollows Hunter extracted" -ForegroundColor white
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "cs.zip") -DestinationPath $ToolsPath
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Chainsaw extracted" -ForegroundColor white
-
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "yara.zip") -DestinationPath $ToolsPath
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "elastic.zip") -DestinationPath $InputPath
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] YARA and YARA rules extracted" -ForegroundColor white
-
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "bcu.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "bcu")
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] BCU extracted" -ForegroundColor white
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "everything.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "everything")
-Expand-Archive -LiteralPath (Join-Path -Path $InputPath -ChildPath "es.zip") -DestinationPath (Join-Path -Path $ToolsPath -ChildPath "everything-cli")
-Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Everything extracted" -ForegroundColor white
-#Chandi Fortnite
+foreach ($job in $jobs) {
+    $job.WaitForCompletion()
+    $job.ExtractDownloadedFiles($InputPath)
+}
