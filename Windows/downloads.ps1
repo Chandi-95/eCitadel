@@ -1,6 +1,6 @@
 # Objective: downloads scripts/tools needed
 
-# TODO: fix missing files not being downloaded (create job after adding all files?) run installers
+# TODO: run installers
 
 # Workaround for older Windows Versions (need NET 4.5 or above)
 # Load zip assembly: [System.Reflection.Assembly]::LoadWithPartialName("System.IO.Compression.FileSystem") | Out-Null
@@ -212,8 +212,6 @@ class DownloadJob {
 }
 
 $ErrorActionPreference = "SilentlyContinue"
-
-$jobs = [System.Collections.ArrayList]::new()
 
 $ghSources = @(
     @{
@@ -471,6 +469,8 @@ if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
     Write-Host "] Locksmith downloaded and installed" -ForegroundColor white
 }
 
+$jobs = [System.Collections.ArrayList]::new()
+
 New-Item -Path $InputPath -Name "zipped" -ItemType "directory" | Out-Null
 New-Item -Path (Join-Path -Path $InputPath -ChildPath "scripts") -Name "results" -ItemType "directory" | Out-Null
 New-Item -Path (Join-Path -Path $InputPath -ChildPath "scripts" | Join-Path -ChildPath "results") -Name "artifacts" -ItemType "directory" | Out-Null
@@ -506,3 +506,5 @@ foreach ($job in $jobs) {
     $job.WaitForCompletion()
     $job.ExtractDownloadedFiles($InputPath)
 }
+
+# Installers
