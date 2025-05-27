@@ -1,3 +1,4 @@
+# TODO: 64-bit vs 32-bit tooling
 $VerbosePreference = "SilentlyContinue"
 [string]$cmdPath = $MyInvocation.MyCommand.Path
 $currentDir = $cmdPath.substring(0, $cmdPath.IndexOf("audit.ps1"))
