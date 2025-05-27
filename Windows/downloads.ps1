@@ -223,8 +223,6 @@ class DownloadJob {
 
 $ErrorActionPreference = "SilentlyContinue"
 
-$jobs = [System.Collections.ArrayList]::new()
-
 $ghSources = @(
     @{
         Endpoint = @(
@@ -494,6 +492,8 @@ if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
     Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
     Write-Host "] Locksmith downloaded and installed" -ForegroundColor white
 }
+
+$jobs = [System.Collections.ArrayList]::new()
 
 New-Item -Path $InputPath -Name "zipped" -ItemType "directory" | Out-Null
 New-Item -Path (Join-Path -Path $InputPath -ChildPath "scripts") -Name "results" -ItemType "directory" | Out-Null
