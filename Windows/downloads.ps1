@@ -280,18 +280,10 @@ $directSources = @(
         Url = "https://homeupdater.patchmypc.com/public/PatchMyPC-HomeUpdater-Portable.exe"
         Path = "tools"
     },
-    # @{
-    #     Url = "https://go.microsoft.com/fwlink/?LinkId=2085155"
-    #     Path = "installs"
-    # },
     @{
         Url = "https://www.binisoft.org/download/wfc6setup.exe"
         Path = "installs"
     },
-    # @{
-    #     Url = "https://www.malwarebytes.com/api/downloads/mb-windows?filename=MBSetup.exe"
-    #     Path = "installs"
-    # },
     @{
         Url = "https://www.cyberlock.global/downloads/InstallDefenderUISilent.exe"
         Path = "installs"
@@ -342,7 +334,7 @@ $niniteSources = @(
     }
 )
 
-# yo i hope this works
+# TODO: uninstall and reinstall defender
 if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Server") {
     Install-WindowsFeature -Name Bitlocker,Windows-Defender | Out-Null
     # the following feature might not exist based on the windows server version
@@ -387,14 +379,6 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         }
     ) | ForEach-Object { [pscustomobject]$_ }
     $directSources += @(
-        # @{
-        #     Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-        #     Path = "installs"
-        # },
-        # @{
-        #     Url = "https://www.voidtools.com/Everything-1.4.1.1027.x64.zip"
-        #     Path = ""
-        # },
         @{
             Url = "https://www.voidtools.com/ES-1.1.0.27.x64.zip"
             Path = ""
@@ -423,14 +407,6 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         }
     ) | ForEach-Object { [pscustomobject]$_ }
     $directSources += @(
-        # @{
-        #     Url = "https://aka.ms/vs/17/release/vc_redist.x86.exe"
-        #     Path = "installs"
-        # },
-        # @{
-        #     Url = "https://www.voidtools.com/Everything-1.4.1.1027.x86.zip"
-        #     Path = ""
-        # },
         @{
             Url = "https://www.voidtools.com/ES-1.1.0.27.x86.zip"
             Path = ""
@@ -453,9 +429,9 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
     Install-WindowsFeature -Name RSAT-AD-Tools,RSAT-DNS-Server,GPMC
     # Domain, Domain Controller, and admin template GPOs 
     $ghSources[1].Endpoint += @(
-        "CCDC-RIT/Hivestorm/main/Windows/gpos/{09D1DE45-0C25-4975-97F9-9197976B322D}.zip",
-        "CCDC-RIT/Hivestorm/main/Windows/gpos/{065414B1-7553-477D-A047-5169D6A5D587}.zip",
-        "CCDC-RIT/Hivestorm/main/Windows/gpos/{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip"
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{78CE52B4-D6E0-41F6-BBCE-4990E5BF9D9A}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{60ADD952-C73D-4380-8450-929515F8BB2E}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{EDE9AE23-42FC-452F-978A-2C9432FA191A}.zip"
     )
     # Reset-KrbtgtKeyInteractive
     $gistSources[0].Endpoint += "mubix/fd0c89ec021f70023695/raw/02e3f0df13aa86da41f1587ad798ad3c5e7b3711/Reset-KrbtgtKeyInteractive.ps1" 
@@ -473,7 +449,7 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
     }
 } else { # non-DC server/client tools
     $ghSources[1].Endpoint += @(
-        "CCDC-RIT/Hivestorm/main/Windows/gpos/{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{60ADD952-C73D-4380-8450-929515F8BB2E}.zip",
         "CCDC-RIT/Hivestorm/main/Windows/gpos/msc-sec-template.inf"
     )
     $directSources += [PSCustomObject]@{
