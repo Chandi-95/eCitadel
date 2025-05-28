@@ -98,9 +98,9 @@ if ($DC) {
 
     # TODO: Fix for correct GPOs
     ## Importing domain GPOs
-    Import-GPO -BackupId "065414B1-7553-477D-A047-5169D6A5D587" -TargetName "wildcard-domain-policies" -CreateIfNeeded -Path $ConfPath
-    Import-GPO -BackupId "09D1DE45-0C25-4975-97F9-9197976B322D" -TargetName "wildcard-dc-policies" -CreateIfNeeded -Path $ConfPath
-    Import-GPO -BackupId "064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4" -TargetName "wildcard-admin-templates" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "78CE52B4-D6E0-41F6-BBCE-4990E5BF9D9A" -TargetName "wildcard-domain-policies" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "EDE9AE23-42FC-452F-978A-2C9432FA191A" -TargetName "wildcard-dc-policies" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "60ADD952-C73D-4380-8450-929515F8BB2E" -TargetName "wildcard-admin-templates" -CreateIfNeeded -Path $ConfPath
     
     $distinguishedName = (Get-ADDomain -Identity (Get-ADDomain -Current LocalComputer).DNSRoot).DistinguishedName
     New-GPLink -Name "wildcard-domain-policies" -Target $distinguishedName -Order 1
@@ -114,7 +114,7 @@ if ($DC) {
     
     # Importing local GPO
     $LGPOPath = Join-Path -Path $rootDir -ChildPath "tools\LGPO_30\LGPO.exe"
-    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{064C9ADE-3C50-4BE1-B494-8CEF0F25D7E4}") 
+    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{60ADD952-C73D-4380-8450-929515F8BB2E}") 
     
     gpupdate /force
 }
@@ -539,7 +539,7 @@ Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -Foregrou
 ## Disabling UPnP
 reg add "HKLM\SOFTWARE\Microsoft\DirectPlayNATHelp\DPNHUPnP" /v UPnPMode /t REG_DWORD /d 2 /f | Out-Null
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Disabled UPnP" -ForegroundColor white 
-## Disabling DCOM cuz why not
+## Disabling DCOM cuz why not - TODO: Enable if on ADCS
 reg add "HKLM\Software\Microsoft\OLE" /v EnableDCOM /t REG_SZ /d N /f | Out-Null
 Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Disabled DCOM" -ForegroundColor white 
 ## I hate print spooler
