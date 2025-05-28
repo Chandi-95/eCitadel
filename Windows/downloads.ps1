@@ -1,6 +1,6 @@
 # Objective: downloads scripts/tools needed
 
-# TODO: fix missing files not being downloaded (create job after adding all files?) run installers
+# TODO: make use of ninite and run installers
 
 # Workaround for older Windows Versions (need NET 4.5 or above)
 # Load zip assembly: [System.Reflection.Assembly]::LoadWithPartialName("System.IO.Compression.FileSystem") | Out-Null
@@ -102,6 +102,16 @@ class DownloadJob {
                 foreach ($entry in $this.Source) {
                     $urlsToDownload.Add([pscustomobject]@{
                         Url  = $entry.Url
+                        Path = $entry.Path
+                    }) | Out-Null
+                }
+            }
+            'Ninite' {
+                foreach ($entry in $this.Source) {
+                    $apps = ($entry.Packages -join '-').ToLower()
+                    $url = "https://ninite.com/$apps/ninite.exe"
+                    $urlsToDownload.Add([PSCustomObject]@{
+                        Url = $url
                         Path = $entry.Path
                     }) | Out-Null
                 }
@@ -260,8 +270,8 @@ $releaseSources = @(
     },
     @{
         Repo = "Klocman/Bulk-Crap-Uninstaller"
-        Keywords = @("BCUninstaller", "portable")
-        Path = ""
+        Keywords = @("BCUninstaller", "setup")
+        Path = "installs"
     }
 ) | ForEach-Object { [pscustomobject]$_ }
 
@@ -270,18 +280,18 @@ $directSources = @(
         Url = "https://homeupdater.patchmypc.com/public/PatchMyPC-HomeUpdater-Portable.exe"
         Path = "tools"
     },
-    @{
-        Url = "https://go.microsoft.com/fwlink/?LinkId=2085155"
-        Path = "installs"
-    },
+    # @{
+    #     Url = "https://go.microsoft.com/fwlink/?LinkId=2085155"
+    #     Path = "installs"
+    # },
     @{
         Url = "https://www.binisoft.org/download/wfc6setup.exe"
         Path = "installs"
     },
-    @{
-        Url = "https://www.malwarebytes.com/api/downloads/mb-windows?filename=MBSetup.exe"
-        Path = "installs"
-    },
+    # @{
+    #     Url = "https://www.malwarebytes.com/api/downloads/mb-windows?filename=MBSetup.exe"
+    #     Path = "installs"
+    # },
     @{
         Url = "https://www.cyberlock.global/downloads/InstallDefenderUISilent.exe"
         Path = "installs"
@@ -320,6 +330,17 @@ $baseSources = @(
         Path = ""
     }
 ) | ForEach-Object { [pscustomobject]$_ }
+
+$niniteSources = @(
+    [PSCustomObject]@{
+        Packages = @(
+            "everything", 
+            "malwarebytes",
+            ".net4.8.1"
+        )
+        Path = "installs"
+    }
+)
 
 # yo i hope this works
 if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Server") {
@@ -366,14 +387,14 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         }
     ) | ForEach-Object { [pscustomobject]$_ }
     $directSources += @(
-        @{
-            Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-            Path = "installs"
-        },
-        @{
-            Url = "https://www.voidtools.com/Everything-1.4.1.1027.x64.zip"
-            Path = ""
-        },
+        # @{
+        #     Url = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+        #     Path = "installs"
+        # },
+        # @{
+        #     Url = "https://www.voidtools.com/Everything-1.4.1.1027.x64.zip"
+        #     Path = ""
+        # },
         @{
             Url = "https://www.voidtools.com/ES-1.1.0.27.x64.zip"
             Path = ""
@@ -387,6 +408,7 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         )
         Path = "tools"
     }
+    $niniteSources[0].Packages += "vcredistx15"
 } else {
     $releaseSources += @(
         @{
@@ -401,14 +423,14 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         }
     ) | ForEach-Object { [pscustomobject]$_ }
     $directSources += @(
-        @{
-            Url = "https://aka.ms/vs/17/release/vc_redist.x86.exe"
-            Path = "installs"
-        },
-        @{
-            Url = "https://www.voidtools.com/Everything-1.4.1.1027.x86.zip"
-            Path = ""
-        },
+        # @{
+        #     Url = "https://aka.ms/vs/17/release/vc_redist.x86.exe"
+        #     Path = "installs"
+        # },
+        # @{
+        #     Url = "https://www.voidtools.com/Everything-1.4.1.1027.x86.zip"
+        #     Path = ""
+        # },
         @{
             Url = "https://www.voidtools.com/ES-1.1.0.27.x86.zip"
             Path = ""
@@ -422,6 +444,7 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         )
         Path = "tools"
     }
+    $niniteSources[0].Packages += "vcredist15"
 }
 
 # Service-specific tooling
@@ -499,6 +522,9 @@ $jobBase.NeedsExtraction = $true
 $jobBase.ExtractTo = "tools"
 $jobs.Add($jobBase) | Out-Null
 
+$jobNinite = [DownloadJob]::new("Ninite", $niniteSources)
+$jobs.Add($jobNinite) | Out-Null
+
 foreach ($job in $jobs) {
     $job.DownloadAllAsync($InputPath)
 }
@@ -507,3 +533,15 @@ foreach ($job in $jobs) {
     $job.WaitForCompletion()
     $job.ExtractDownloadedFiles($InputPath)
 }
+
+# run installer(s)
+Set-Location -Path (Join-Path -Path $InputPath -ChildPath "installs")
+$msiFiles = Get-ChildItem -Path $searchPath -Filter *.msi -Recurse 
+foreach ($msi in $msiFiles) {
+    Start-Process "msiexec.exe" -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart" -Wait
+}
+& ".\InstallDefenderUISilent.exe" /VERYSILENT
+$bcu = Get-ChildItem -Path $searchPath -Filter *.exe -Recurse | 
+    Where-Object { $_.Name -like "*BCU*" }
+& $bcu.FullName /VERYSILENT /NORESTART
+& ".\ninite.exe"
