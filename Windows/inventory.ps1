@@ -100,7 +100,7 @@ $SystemApps = $SystemApps.Replace("::","<br>")
 	# $FeatureInfo = Get-WindowsFeature | Where-Object {$_.InstallState -eq "Installed"} | ConvertTo-Html -Fragment -Property Name,Path -PreContent "<h3>Installed Roles and Features</h3>"
 # }
 
-# TODO: search for external package managers
+# TODO: search for external package managers, display their packages (e.g. winget, chocolatey)
 
 $Report = ConvertTo-Html -CssUri $CssPath -Body "$PreContent $ComputerName $DomainName $OSInfo $LocalUserInfo $NetworkInfo $TCPInfo $UDPInfo $SystemApps" -Title "Host Information Report" -PostContent "<p>Creation Date $(Get-Date)</p></div>" 
 
