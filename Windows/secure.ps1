@@ -1,9 +1,9 @@
-# Optional parameter for password
 param (
+    [Parameter(mandatory=$true)]
     [SecureString]$Password 
 )
 
-# Lorge secure script
+# ye olde secure script
 # Author: Chandi Kanhai (@Chandi-95)
 $Error.Clear()
 $ErrorActionPreference = "Continue"
@@ -20,11 +20,6 @@ if (Get-Service -Name W3SVC 2>$null) {
     $IIS = $true
 }
 
-# CA detection
-$CA = $false
-if (Get-Service -Name CertSvc 2>$null) {
-    $CA = $true
-}
 $currentDir = (($MyInvocation.MyCommand.Path).Substring(0,($MyInvocation.MyCommand.Path).IndexOf("secure.ps1")))
 $rootDir = $currentDir.substring(0,$currentDir.indexOf("scripts"))
 $ConfPath = Join-Path -Path $currentDir -ChildPath "conf"
@@ -416,9 +411,6 @@ reg add "HKLM\SOFTWARE\Policies\Microsoft\SystemCertificates\Root\ProtectedRoots
 reg add "HKLM\SOFTWARE\Policies\Microsoft\SystemCertificates\Root\ProtectedRoots" /v Flags /t REG_DWORD /d 1 /f | Out-Null
 
 # ----------- WINDOWS DEFENDER/antimalware settings ------------
-
-# TODO: defender ui profile
-
 ## Starting Windows Defender service
 if(!(Get-MpComputerStatus | Select-Object AntivirusEnabled)) {
     Start-Service WinDefend
@@ -505,6 +497,12 @@ ForEach ($ex_ip in (Get-MpPreference).ExclusionIpAddress) {
 Write-Host "[" -ForegroundColor white -NoNewLine; 
 Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
 Write-Host "] Removed Defender exclusions" -ForegroundColor white
+
+# Set Defender UI profile
+& "C:\Program Files\DefenderUI\DefenderUI.exe" -CustomProfile LYCME
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+Write-Host "] Defender UI profile set" -ForegroundColor white
 
 # ----------- Service security ------------
 ## Stopping psexec with the power of svchost
@@ -1302,6 +1300,12 @@ if ($IIS) {
 
     Write-Host "[INFO] IIS Hardening Configurations Applied Successfully."
 }
+
+# Configure BitLocker
+Enable-Bitlocker -MountPoint "C:" -EncryptionMethod XtsAes256 -Password $Password
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "INFO" -ForegroundColor yellow -NoNewLine; 
+Write-Host "] Bitlocker configured" -ForegroundColor white  
 
 # Enabling Constrained Language Mode (the wrong way) (disabled for now because it breaks some tools)
 # reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment" /v "__PSLockDownPolicy" /t REG_SZ /d 4 /f | Out-Null
