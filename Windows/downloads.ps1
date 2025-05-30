@@ -338,6 +338,10 @@ $niniteSources = @(
     }
 )
 
+# Add package manager and repository for PowerShell
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
+Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted | Out-Null
+
 # Uninstall and reinstall defender + bitlocker
 Uninstall-WindowsFeature Windows-Defender | Out-Null
 Install-WindowsFeature Windows-Defender | Out-Null
@@ -467,10 +471,8 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
     }
 }
 
-if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
-    # Add package manager and repository for PowerShell
-    Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
-    Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted | Out-Null
+# ADCS tools
+if (Get-Service -Name CertSvc 2>$null) { 
     # install dependency for locksmith (AD PowerShell module) and ADCS management tools
     Install-WindowsFeature -Name RSAT-AD-PowerShell,RSAT-ADCS-Mgmt | Out-Null
     # install locksmith
@@ -478,6 +480,10 @@ if (Get-Service -Name CertSvc 2>$null) { # ADCS tools
     Write-Host "[" -ForegroundColor white -NoNewLine; 
     Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
     Write-Host "] Locksmith downloaded and installed" -ForegroundColor white
+}
+
+if (Get-Service -Name 'sshd' -ErrorAction SilentlyContinue) {
+    $ghSources[0].Endpoint += "/PowerShell/openssh-portable/refs/heads/latestw_all/contrib/win32/openssh/OpenSSHUtils.psm1"
 }
 
 New-Item -Path $InputPath -Name "zipped" -ItemType "directory" | Out-Null
