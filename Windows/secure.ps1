@@ -30,11 +30,13 @@ $ToolPath = Join-Path -Path $currentDir -ChildPath "tools"
 # Write-Host "[INFO] RDP disabled"
 
 # Uninstalling Windows capabilities
-$capabilities = @("OpenSSH.Client~~~~0.0.1.0", "OpenSSH.Server~~~~0.0.1.0", "RIP.Listener~~~~0.0.1.0", "XPS.Viewer~~~~0.0.1.0")
+$capabilities = @("Browser.InternetExplorer~~~~0.0.11.0", "Media.WindowsMediaPlayer~~~~0.0.12.0", "RIP.Listener~~~~0.0.1.0", "XPS.Viewer~~~~0.0.1.0", "VBSCRIPT~~~~")
 foreach ($capability in $capabilities) {
     if ((Get-WindowsCapability -Online -Name $capability | Select-Object -ExpandProperty "State") -eq "Installed") {
         Remove-WindowsCapability -Online -Name $capability | Out-Null
-        Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Uninstalled $capability" -ForegroundColor white 
+        Write-Host "[" -ForegroundColor white -NoNewLine; 
+        Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+        Write-Host "] Uninstalled $capability" -ForegroundColor white 
     }
 }
 
@@ -43,7 +45,9 @@ $features = @("MicrosoftWindowsPowerShellV2", "MicrosoftWindowsPowerShellV2Root"
 foreach ($feature in $features) {
     if ((Get-WindowsOptionalFeature -Online -FeatureName $feature | Select-Object -ExpandProperty "State") -eq "Enabled") {
         Disable-WindowsOptionalFeature -Online -FeatureName $feature -norestart | Out-Null
-        Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Disabled $feature" -ForegroundColor white 
+        Write-Host "[" -ForegroundColor white -NoNewLine; 
+        Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+        Write-Host "] Disabled $feature" -ForegroundColor white 
     }
 }
 
@@ -55,7 +59,7 @@ if($badapps){
     foreach($program in $badapps){
         Write-Host "[" -ForegroundColor white -NoNewLine;
         Write-Host "INFO" -ForegroundColor yellow -NoNewLine;
-        Write-Host "Uninstalling $($program.Name)" -ForegroundColor white
+        Write-Host "] Uninstalling $($program.Name)" -ForegroundColor white
         $result = $program.Uninstall()
         if($result.ReturnValue -eq 0){
             Write-Host "[" -ForegroundColor white -NoNewLine; 
@@ -84,7 +88,7 @@ foreach($path in $allPATHs){
     }
 }
 
-# drop an eagle 500kg bomb on chocolatey
+# drop an eagle 500kg on chocolatey
 Remove-Item -Recurse -Force "$env:ChocolateyInstall"
 [System.Text.RegularExpressions.Regex]::Replace([Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment').GetValue('PATH', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames).ToString(), [System.Text.RegularExpressions.Regex]::Escape("$env:ChocolateyInstall\bin") + '(?>;)?', '', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) | %{[System.Environment]::SetEnvironmentVariable('PATH', $_, 'User')}
 [System.Text.RegularExpressions.Regex]::Replace([Microsoft.Win32.Registry]::LocalMachine.OpenSubKey('SYSTEM\CurrentControlSet\Control\Session Manager\Environment\').GetValue('PATH', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames).ToString(),  [System.Text.RegularExpressions.Regex]::Escape("$env:ChocolateyInstall\bin") + '(?>;)?', '', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) | %{[System.Environment]::SetEnvironmentVariable('PATH', $_, 'Machine')}
@@ -1299,6 +1303,187 @@ if ($IIS) {
     iisreset
 
     Write-Host "[INFO] IIS Hardening Configurations Applied Successfully."
+}
+
+# OpenSSH
+$sshConfigServer = @"
+HostKey __PROGRAMDATA__/ssh/ssh_host_rsa_key
+HostKey __PROGRAMDATA__/ssh/ssh_host_ed25519_key
+
+KexAlgorithms curve25519-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256
+
+Ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+
+MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128-etm@openssh.com
+
+HostKeyAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256
+
+CASignatureAlgorithms sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+
+HostbasedAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-256
+
+PubkeyAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-256
+
+StrictModes yes
+
+UseDNS yes
+
+MaxAuthTries 3
+
+MaxSessions 1
+
+LoginGraceTime 10
+
+ClientAliveInterval 300
+ClientAliveCountMax 3
+
+IgnoreRhosts Yes
+
+PermitEmptyPasswords no
+
+PermitUserEnvironment no
+
+PermitRootLogin no
+
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+PermitTunnel no
+
+Banner none
+"@
+
+$sshConfigClient = @"
+Host *
+ KexAlgorithms curve25519-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group-exchange-sha256
+
+ Ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com,aes256-ctr,aes192-ctr,aes128-ctr
+
+ MACs hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,umac-128-etm@openssh.com
+
+ HostKeyAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256
+
+ CASignatureAlgorithms sk-ssh-ed25519@openssh.com,ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+
+ PubkeyAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-256
+"@
+$sshConfigClientV9 = @"
+ HostbasedAcceptedAlgorithms sk-ssh-ed25519-cert-v01@openssh.com,ssh-ed25519-cert-v01@openssh.com,rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-512,rsa-sha2-256-cert-v01@openssh.com,rsa-sha2-256
+"@
+# OpenSSH server
+if (Get-Service -Name 'sshd' -ErrorAction SilentlyContinue) {
+    Import-Module (Join-Path -Path $ToolPath -ChildPath "OpenSSHUtils.psm1")
+    # add openssh to path
+    $opensshPath = "$env:WINDIR\System32\OpenSSH"
+    $currentPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::Machine)
+    if (-not ($currentPath.Split(';') -contains $opensshPath)) {
+        [Environment]::SetEnvironmentVariable(
+            "Path",
+            "$currentPath;$opensshPath",
+            [EnvironmentVariableTarget]::Machine
+        )
+    }
+    # set default shell
+    reg add "HKLM\SOFTWARE\OpenSSH" /v DefaultShell /t REG_SZ /d "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" /f | Out-Null
+    reg add "HKLM\SOFTWARE\OpenSSH" /v DefaultShellCommmandOption /t REG_SZ /d "/c" /f | Out-Null
+    Stop-Service sshd
+    # backup original config
+    $sshDir =  Join-Path -Path $env:PROGRAMDATA -ChildPath "ssh"
+    $sshConfig = Join-Path -Path $sshDir -ChildPath "sshd_config"
+    $backupConfig = Join-Path -Path $sshDir -ChildPath "sshd_config.bak"
+    if (Test-Path -Path $sshConfig) {
+        Copy-Item -Path $sshConfig -Destination $backupConfig -Force  
+        # edit config file
+        $lineToFind = "#HostKey __PROGRAMDATA__/ssh/ssh_host_ed25519_key"
+        $fileContent = Get-Content -Path $sshConfig
+        $lineIndex = $fileContent.IndexOf($lineToFind)
+        if ($lineIndex -ge 0) {
+            $newContent = $fileContent[$lineIndex] + "`r`n" + $sshConfigServer
+            $fileContent[$lineIndex] = $newContent
+            Set-Content -Path $sshConfig -Value $fileContent
+            Write-Host "OpenSSH server configuration has been added to $sshConfig"
+        } else {
+            Write-Warning "The specified line '$lineToFind' was not found in the file."
+        }
+        Repair-SshdConfigPermission -FilePath $sshConfig
+    }
+    # regenerate host keys and repair permissions
+    Get-ChildItem -Path $sshDir -Filter "ssh_host_*_key*" | ForEach-Object {
+        Rename-Item $_.FullName "$($_.FullName).bak"
+    }
+    & "$env:WINDIR\System32\OpenSSH\ssh-keygen.exe" -A
+    Get-ChildItem -Path $sshDir -Filter "ssh_host_*_key*" | ForEach-Object {
+        Repair-SshdHostKeyPermission -FilePath $_.FullName
+    }
+    # (re)generate moduli and repair file permissions
+    $moduliPath = Join-Path -Path $sshDir -ChildPath "moduli"
+    if (Test-Path -Path $moduliPath) {
+        Get-Content $moduliPath | ForEach-Object {
+            $fields = $_ -split "\s+"
+            if ($fields[4] -as [int] -ge 3071) {
+                $_
+            }
+        } | Set-Content "$env:TEMP\moduli.safe"
+        Copy-Item "$env:TEMP\moduli.safe" "C:\ProgramData\ssh\moduli" -Force
+        Repair-ModuliFilePermission -FilePath "C:\ProgramData\ssh\moduli"
+    } 
+    # repair authorized keys permissions
+    Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList"  -ErrorAction SilentlyContinue | % {
+        $properties =  Get-ItemProperty $_.pspath  -ErrorAction SilentlyContinue
+        $userProfilePath = ""
+        if($properties)
+        {
+            $userProfilePath =  $properties.ProfileImagePath
+        }
+        $filePath = Join-Path $userProfilePath .ssh\authorized_keys
+        if(Test-Path $filePath -PathType Leaf)
+        {
+            Repair-AuthorizedKeyPermission -FilePath $filePath
+        }
+    }
+    # repair admin authorized key permissions
+    $sshdAdministratorsAuthorizedKeysPath = join-path $env:ProgramData\ssh "administrators_authorized_keys"
+    if (Test-Path $sshdAdministratorsAuthorizedKeysPath -PathType Leaf) {
+        Repair-AdministratorsAuthorizedKeysPermission -FilePath $sshdAdministratorsAuthorizedKeysPath
+    }
+    # # repair file permissions
+    $dirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue
+    foreach ($dir in $dirs) {
+        $username = $dir.Name
+        $sshPath = Join-Path -Path $dir.FullName -ChildPath ".ssh"
+        $sid = Get-UserSID -User "$($env:USERDOMAIN)\$($username)"
+        if (Test-Path $sshPath) {
+            Repair-UserSshConfigPermission -FilePath (Join-Path -Path $sshPath -ChildPath "config") -UserSid $sid
+            Get-ChildItem $sshPath* -Include "id_rsa","id_dsa","id_ecdsa","id_ed25519" -ErrorAction SilentlyContinue | ForEach-Object {
+                Repair-UserKeyPermission -FilePath $_.FullName -UserSid $sid
+            }
+        }
+    }
+    # repair folder permissions
+    Repair-SSHFolderPermission -FilePath $sshDir
+    Restart-Service sshd 
+    Write-Host "[" -ForegroundColor white -NoNewLine; 
+    Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+    Write-Host "] Configured OpenSSH Server and reset file permissions" -ForegroundColor white 
+}
+# OpenSSH client
+if (Test-Path "$env:WINDIR\System32\OpenSSH\ssh.exe") {
+    $sshDir = Join-Path -Path $env:PROGRAMDATA -ChildPath "ssh"
+    $sshConfig = Join-Path -Path $sshDir -ChildPath "ssh_config"
+    $backupConfig = Join-Path -Path $sshDir -ChildPath "ssh_config.bak"
+    if (!(Test-Path $sshConfig)) {
+        New-Item -ItemType File -Path $sshConfig -Force 
+    } else {
+        Copy-Item -Path $sshConfig -Destination $backupConfig -Force  
+    }
+    $sshConfigClient = $sshConfigClient -replace '(?<=MACs\s)([^\r\n]*)', '$1,hmac-sha2-256'
+    Set-Content -Path $sshConfig -Value $sshConfigClient
+    if ((& ssh -V 2>&1) -match "_9\.") {
+        Add-Content -Path $sshConfig -Value $sshConfigClientV9
+    }
+    Write-Host "[" -ForegroundColor white -NoNewLine; 
+    Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+    Write-Host "] Configured OpenSSH client" -ForegroundColor white 
 }
 
 # Configure BitLocker
