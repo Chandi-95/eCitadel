@@ -243,8 +243,8 @@ $ghSources = @(
     },
     @{
         Endpoint = @(
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/settings.xml",
             "CCDC-RIT/Windows-Scripts/master/auditpol.csv",
-            "CCDC-RIT/Windows-Scripts/master/defender-exploit-guard-settings.xml",
             "CCDC-RIT/Logging-Scripts/main/agent_windows.conf",
             "olafhartong/sysmon-modular/master/sysmonconfig.xml"
         );
@@ -278,6 +278,10 @@ $releaseSources = @(
 $directSources = @(
     @{
         Url = "https://homeupdater.patchmypc.com/public/PatchMyPC-HomeUpdater-Portable.exe"
+        Path = "tools"
+    },
+    @{
+        Url = "https://www.nartac.com/Downloads/IISCrypto/IISCryptoCli.exe"
         Path = "tools"
     },
     @{
@@ -334,15 +338,20 @@ $niniteSources = @(
     }
 )
 
-# TODO: uninstall and reinstall defender
+# Uninstall and reinstall defender + bitlocker
+Uninstall-WindowsFeature Windows-Defender | Out-Null
+Install-WindowsFeature Windows-Defender | Out-Null
 if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Server") {
-    Install-WindowsFeature -Name Bitlocker,Windows-Defender | Out-Null
-    # the following feature might not exist based on the windows server version
-    Install-WindowsFeature -Name Windows-Defender-GUI | Out-Null
+    # the following features may not exist based on the windows server version
+    Install-WindowsFeature -Name Windows-Defender-GUI,Windows-Defender-Features | Out-Null
+    Install-WindowsFeature -Name Bitlocker | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; 
     Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
-    Write-Host "] Bitlocker and Windows Defender installed" -ForegroundColor white
+    Write-Host "] BitLocker installed" -ForegroundColor white
 }
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+Write-Host "] Windows Defender reinstalled" -ForegroundColor white
 
 # Server Core Tooling
 if ((Test-Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion") -and (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion" | Select-Object -ExpandProperty "InstallationType") -eq "Server Core") {
@@ -430,8 +439,8 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
     # Domain, Domain Controller, and admin template GPOs 
     $ghSources[1].Endpoint += @(
         "CCDC-RIT/Hivestorm/main/Windows/gpos/{78CE52B4-D6E0-41F6-BBCE-4990E5BF9D9A}.zip",
-        "CCDC-RIT/Hivestorm/main/Windows/gpos/{60ADD952-C73D-4380-8450-929515F8BB2E}.zip",
-        "CCDC-RIT/Hivestorm/main/Windows/gpos/{EDE9AE23-42FC-452F-978A-2C9432FA191A}.zip"
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{EDE9AE23-42FC-452F-978A-2C9432FA191A}.zip",
+        "CCDC-RIT/Hivestorm/main/Windows/gpos/{3650625F-02CB-4E30-BCD6-A2226F3549A9}.zip"
     )
     # Reset-KrbtgtKeyInteractive
     $gistSources[0].Endpoint += "mubix/fd0c89ec021f70023695/raw/02e3f0df13aa86da41f1587ad798ad3c5e7b3711/Reset-KrbtgtKeyInteractive.ps1" 
