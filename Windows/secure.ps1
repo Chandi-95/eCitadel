@@ -121,25 +121,63 @@ if ($DC) {
         }
     }
 
+    $basePath = "C:\Program Files (x86)\Microsoft Group Policy"
+    $windowsFolder = Get-ChildItem -Path $basePath -Directory | Where-Object { $_.Name -like "*Windows*" }
+    $policyDefinitionsPath = Join-Path $windowsFolder.FullName "PolicyDefinitions"
+
+    $domain = (Get-ADDomain).DNSRoot
+    $centralStore = "\\$domain\SYSVOL\$domain\Policies\PolicyDefinitions"
+    if (-not (Test-Path $centralStore)) {
+        New-Item -Path $centralStore -ItemType Directory -Force | Out-Null
+    }
+    if (-not (Test-Path "$centralStore\en-US")) {
+        New-Item -Path "$centralStore\en-US" -ItemType Directory -Force | Out-Null
+    }
+    Copy-Item -Path "$policyDefinitionsPath\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\chrome_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\edge_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\firefox_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$sourceADMX\en-US\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\chrome_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\edge_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\firefox_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    # {9A171870-E054-4062-A4A8-982260FA6F91} - Google Chrome
+    # {31F43C0B-1263-4EB1-9E73-30A0152933B9} - Mozilla Firefox
+    # {13E4650A-1184-42C7-819E-AC55ECA967F8} - Microsoft Edge
     ## Importing domain GPOs
     Import-GPO -BackupId "78CE52B4-D6E0-41F6-BBCE-4990E5BF9D9A" -TargetName "wildcard-domain-policies" -CreateIfNeeded -Path $ConfPath
     Import-GPO -BackupId "EDE9AE23-42FC-452F-978A-2C9432FA191A" -TargetName "wildcard-dc-policies" -CreateIfNeeded -Path $ConfPath
     Import-GPO -BackupId "3650625F-02CB-4E30-BCD6-A2226F3549A9" -TargetName "wildcard-admin-templates" -CreateIfNeeded -Path $ConfPath
-    
+    Import-GPO -BackupId "9A171870-E054-4062-A4A8-982260FA6F91" -TargetName "chrome" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "31F43C0B-1263-4EB1-9E73-30A0152933B9" -TargetName "firefox" -CreateIfNeeded -Path $ConfPath
+    Import-GPO -BackupId "13E4650A-1184-42C7-819E-AC55ECA967F8" -TargetName "edge" -CreateIfNeeded -Path $ConfPath
+
     $distinguishedName = (Get-ADDomain -Identity (Get-ADDomain -Current LocalComputer).DNSRoot).DistinguishedName
     New-GPLink -Name "wildcard-domain-policies" -Target $distinguishedName -Order 1
     New-GPLink -Name "wildcard-admin-templates" -Target $distinguishedName
     New-GPLink -Name "wildcard-dc-policies" -Target ("OU=Domain Controllers," + $distinguishedName) -Order 1
-
+    New-GPLink -Name "chrome" -Target $distinguishedName
+    New-GPLink -Name "firefox" -Target $distinguishedName
+    New-GPLink -Name "edge" -Target $distinguishedName
+    
     gpupdate /force
 } else {
+    $centralStore = "C:\Windows\PolicyDefinitions"
+    Copy-Item -Path "$ConfPath\chrome_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\edge_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\firefox_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\chrome_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\edge_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\firefox_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
     ## Applying client machine/member server security template
     secedit /configure /db $env:windir\security\local.sdb /cfg (Join-Path -Path $ConfPath -ChildPath 'msc-sec-template.inf')
     
     # Importing local GPO
     $LGPOPath = Join-Path -Path $rootDir -ChildPath "tools\LGPO_30\LGPO.exe"
     & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{3650625F-02CB-4E30-BCD6-A2226F3549A9}") 
-    
+    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{9A171870-E054-4062-A4A8-982260FA6F91}")
+    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{31F43C0B-1263-4EB1-9E73-30A0152933B9}") 
+    & $LGPOPath /g (Join-Path -Path $ConfPath -ChildPath "{13E4650A-1184-42C7-819E-AC55ECA967F8}") 
     gpupdate /force
 }
 
@@ -1386,7 +1424,7 @@ if (Get-Service -Name 'sshd' -ErrorAction SilentlyContinue) {
     # set default shell
     reg add "HKLM\SOFTWARE\OpenSSH" /v DefaultShell /t REG_SZ /d "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" /f | Out-Null
     reg add "HKLM\SOFTWARE\OpenSSH" /v DefaultShellCommmandOption /t REG_SZ /d "/c" /f | Out-Null
-    Stop-Service sshd
+    Stop-Service sshd -Force
     # backup original config
     $sshDir =  Join-Path -Path $env:PROGRAMDATA -ChildPath "ssh"
     $sshConfig = Join-Path -Path $sshDir -ChildPath "sshd_config"
