@@ -234,15 +234,21 @@ $ghSources = @(
             "CCDC-RIT/Hivestorm/main/Windows/zookeeper.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/secure.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/logging.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/firewall.ps1",
             "CCDC-RIT/Windows-Scripts/master/backup.ps1",
             "CCDC-RIT/Windows-Scripts/master/command_runbook.txt",
-            "CCDC-RIT/Windows-Scripts/master/firewall.ps1",
             "itm4n/PrivescCheck/master/PrivescCheck.ps1"
         );
         Path = "scripts"
     },
     @{
         Endpoint = @(
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/{13E4650A-1184-42C7-819E-AC55ECA967F8}.zip",
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/{9A171870-E054-4062-A4A8-982260FA6F91}.zip",
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/{31F43C0B-1263-4EB1-9E73-30A0152933B9}.zip",
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/chrome_admx.zip",
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/firefox_admx.zip",
+            "CCDC-RIT/Hivestorm/main/Windows/gpos/edge_admx.zip",
             "CCDC-RIT/Hivestorm/main/Windows/gpos/settings.xml",
             "CCDC-RIT/Windows-Scripts/master/auditpol.csv",
             "CCDC-RIT/Logging-Scripts/main/agent_windows.conf",
@@ -265,7 +271,7 @@ $gistSources = @(
 $releaseSources = @(
     @{
         Repo = "WithSecureLabs/chainsaw"
-        Keywords = @("all_platforms", "rules", "zip")
+        Keywords = @("all_platforms", "rules.zip")
         Path = ""
     },
     @{
@@ -434,6 +440,23 @@ if ([System.Environment]::Is64BitOperatingSystem) {
         Path = "tools"
     }
     $niniteSources[0].Packages += "vcredist15"
+}
+
+if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption -match "Windows Server.*2022") {
+    $directSources += @(
+        @{
+            Url = "https://download.microsoft.com/download/a/b/a/aba58fd9-64dc-4416-aa1e-40bcb270f649/Administrative%20Templates%20(.admx)%20for%20Windows%20Server%202022%20August%202021%20Update.msi"
+            Path = "installs"
+        }
+    ) | ForEach-Object { [pscustomobject]$_ }
+}
+if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption -match "Windows Server.*2025") {
+    $directSources += @(
+        @{
+            Url = "https://download.microsoft.com/download/4/e/7/4e72a8bd-f132-4cdf-8ffb-e84266c5084e/Administrative%20Templates%20(.admx)%20for%20Windows%20Server2025%20November%202024%20Update.msi"
+            Path = "installs"
+        }
+    ) | ForEach-Object { [pscustomobject]$_ }
 }
 
 # Service-specific tooling
