@@ -235,7 +235,7 @@ $ghSources = @(
             "CCDC-RIT/Hivestorm/main/Windows/secure.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/logging.ps1",
             "CCDC-RIT/Hivestorm/main/Windows/firewall.ps1",
-            "CCDC-RIT/Windows-Scripts/master/backup.ps1",
+            "CCDC-RIT/Hivestorm/main/Windows/backup.ps1",
             "CCDC-RIT/Windows-Scripts/master/command_runbook.txt",
             "itm4n/PrivescCheck/master/PrivescCheck.ps1"
         );
