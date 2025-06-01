@@ -134,13 +134,13 @@ if ($DC) {
         New-Item -Path "$centralStore\en-US" -ItemType Directory -Force | Out-Null
     }
     Copy-Item -Path "$policyDefinitionsPath\*.admx" -Destination $centralStore -Force
-    Copy-Item -Path "$ConfPath\chrome_admx\*.admx" -Destination $centralStore -Force
-    Copy-Item -Path "$ConfPath\edge_admx\*.admx" -Destination $centralStore -Force
-    Copy-Item -Path "$ConfPath\firefox_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\chrome_admx\chrome_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\edge_admx\edge_admx\*.admx" -Destination $centralStore -Force
+    Copy-Item -Path "$ConfPath\firefox_admx\firefox_admx\*.admx" -Destination $centralStore -Force
     Copy-Item -Path "$sourceADMX\en-US\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
-    Copy-Item -Path "$ConfPath\chrome_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
-    Copy-Item -Path "$ConfPath\edge_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
-    Copy-Item -Path "$ConfPath\firefox_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\chrome_admx\chrome_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\edge_admx\edge_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
+    Copy-Item -Path "$ConfPath\firefox_admx\firefox_admx\*.adml" -Destination (Join-Path $centralStore "en-US") -Force
     # {9A171870-E054-4062-A4A8-982260FA6F91} - Google Chrome
     # {31F43C0B-1263-4EB1-9E73-30A0152933B9} - Mozilla Firefox
     # {13E4650A-1184-42C7-819E-AC55ECA967F8} - Microsoft Edge

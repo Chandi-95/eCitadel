@@ -386,6 +386,8 @@ if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Serve
     Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
     Write-Host "] BitLocker installed" -ForegroundColor white
 }
+# attempt to keep defender off while desperately trying to download things
+reg add "HKLM\SOFTWARE\Policies\Microsoft\Windows Advanced Threat Protection" /v "ForceDefenderPassiveMode" /t REG_DWORD /d 1 /f | Out-Null
 
 # Server Core Tooling
 if ((Test-Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion") -and (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion" | Select-Object -ExpandProperty "InstallationType") -eq "Server Core") {
@@ -466,7 +468,7 @@ if ([System.Environment]::Is64BitOperatingSystem) {
     $niniteSources[0].Packages += "vcredist15"
 }
 
-if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption -match "Windows Server.*2022") {
+if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption | Where-Object { $_ -match "Windows Server.*2022"}) {
     $directSources += @(
         @{
             Url = "https://download.microsoft.com/download/a/b/a/aba58fd9-64dc-4416-aa1e-40bcb270f649/Administrative%20Templates%20(.admx)%20for%20Windows%20Server%202022%20August%202021%20Update.msi"
@@ -474,7 +476,7 @@ if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption -ma
         }
     ) | ForEach-Object { [pscustomobject]$_ }
 }
-if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption -match "Windows Server.*2025") {
+if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption | Where-Object { $_ -match "Windows Server.*2025"}) {
     $directSources += @(
         @{
             Url = "https://download.microsoft.com/download/4/e/7/4e72a8bd-f132-4cdf-8ffb-e84266c5084e/Administrative%20Templates%20(.admx)%20for%20Windows%20Server2025%20November%202024%20Update.msi"
@@ -525,6 +527,7 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
 if (Get-Service -Name CertSvc 2>$null) { 
     # install dependency for locksmith (AD PowerShell module) and ADCS management tools
     Install-WindowsFeature -Name RSAT-AD-PowerShell,RSAT-ADCS-Mgmt | Out-Null
+    Install-Module ADCSAdministration | Out-Null
     # install locksmith
     Install-Module -Name Locksmith -Scope CurrentUser | Out-Null
     Write-Host "[" -ForegroundColor white -NoNewLine; 
