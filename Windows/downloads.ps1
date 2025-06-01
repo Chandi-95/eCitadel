@@ -57,13 +57,12 @@ class DownloadJob {
                 foreach ($repoEntry in $this.Source) {
                     $repo = $repoEntry.Repo
                     $keywords = $repoEntry.Keywords
-                    $subDir = $repoEntry.Path
-                    Write-Host "🔍 GitHub Release: $repo"
                     $assets = $this.GetMatchingRelease($repo, $keywords)
                     foreach ($url in $assets) {
-                        $urlsToDownload.Add([pscustomobject]@{
+                        Write-Host "GitHub Release: $url"
+                        $urlsToDownload.Add([PSCustomObject]@{
                             Url  = $url
-                            Path = $subDir
+                            Path = $repoEntry.Path
                         }) | Out-Null
                     }
                 }
@@ -117,7 +116,9 @@ class DownloadJob {
                 }
             }
             default {
-                Write-Warning "Unknown source type: $($this.Source.Type)"
+                Write-Host "[" -ForegroundColor white -NoNewLine; 
+                Write-Host "ERROR" -ForegroundColor red -NoNewLine; 
+                Write-Host "] Unknown source type: $($this.Source.Type)" -ForegroundColor white
             }
         }
 
@@ -138,13 +139,17 @@ class DownloadJob {
             $destPath = Join-Path $targetDir $fileName
 
             if (Test-Path $destPath) {
-                Write-Host " Already exists: $fileName"
+                Write-Host "[" -ForegroundColor white -NoNewLine; 
+                Write-Host "INFO" -ForegroundColor yellow -NoNewLine; 
+                Write-Host "] Already exists: $fileName" -ForegroundColor white
                 continue
             }
 
             $webClient = New-Object System.Net.WebClient
 
-            Write-Host "Starting download: $url"
+            Write-Host "[" -ForegroundColor white -NoNewLine; 
+            Write-Host "INFO" -ForegroundColor yellow -NoNewLine; 
+            Write-Host "] Starting download: $url" -ForegroundColor white
             $task = $webClient.DownloadFileTaskAsync($url, $destPath)
             $this.Tasks.Add($task)
             $this.DownloadedFiles.Add($destPath)
@@ -173,13 +178,17 @@ class DownloadJob {
             }
             return $matchedAssets
         } catch {
-            throw "Failed to fetch GitHub release: $_"
+            Write-Host "[" -ForegroundColor white -NoNewLine; 
+            Write-Host "ERROR" -ForegroundColor red -NoNewLine; 
+            Write-Host "] Failed to fetch GitHub release: $_" -ForegroundColor white
             return [System.Collections.ArrayList]::new()
         }
     }
 
     [void]WaitForCompletion() {
-        Write-Host "⏳ Waiting for $($this.Tasks.Count) downloads..."
+        Write-Host "[" -ForegroundColor white -NoNewLine; 
+        Write-Host "INFO" -ForegroundColor yellow -NoNewLine; 
+        Write-Host "] Waiting for $($this.Tasks.Count) downloads..." -ForegroundColor white
         try {
             [System.Threading.Tasks.Task]::WaitAll($this.Tasks.ToArray())
         } catch [System.AggregateException] {
@@ -192,7 +201,9 @@ class DownloadJob {
                 Write-Host $innerEx.StackTrace
             }
         }
-        Write-Host "✅ Finished downloading $($this.Tasks.Count) items"
+        Write-Host "[" -ForegroundColor white -NoNewLine; 
+        Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+        Write-Host "] Finished downloading $($this.Tasks.Count) items" -ForegroundColor white
     }
 
     [void]ExtractDownloadedFiles([string]$RootDir) {
@@ -210,11 +221,15 @@ class DownloadJob {
                 }
 
                 try {
-                    Write-Host "🗂️  Extracting $file to $targetDir"
+                    Write-Host "[" -ForegroundColor white -NoNewLine; 
+                    Write-Host "INFO" -ForegroundColor yellow -NoNewLine; 
+                    Write-Host "] Extracting $file to $targetDir" -ForegroundColor white
                     Expand-Archive -Path $file -DestinationPath $targetDir
                     Move-Item -Path $file -Destination (Join-Path -Path $RootDir -ChildPath "zipped")
                 } catch {
-                    Write-Warning "❌ Failed to extract $($file): $_"
+                    Write-Host "[" -ForegroundColor white -NoNewLine; 
+                    Write-Host "ERROR" -ForegroundColor red -NoNewLine; 
+                    Write-Host "] Failed to extract $($file): $_" -ForegroundColor white
                 }
             }
         }
@@ -301,6 +316,10 @@ $directSources = @(
     @{
         Url = "https://download.gnome.org/binaries/win32/meld/3.22/Meld-3.22.2-mingw.msi"
         Path = "installs"
+    },
+    @{
+        Url = "https://downloads.malwarebytes.com/file/mb-windows"
+        Path = "installs"
     }
 ) | ForEach-Object { [pscustomobject]$_ }
 
@@ -336,8 +355,7 @@ $baseSources = @(
 $niniteSources = @(
     [PSCustomObject]@{
         Packages = @(
-            "everything", 
-            "malwarebytes",
+            "everything",
             ".net4.8.1"
         )
         Path = "installs"
@@ -347,10 +365,19 @@ $niniteSources = @(
 # Add package manager and repository for PowerShell
 Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Out-Null
 Set-PSRepository -Name "PSGallery" -InstallationPolicy Trusted | Out-Null
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+Write-Host "] Added PSGallery repository" -ForegroundColor white
 
 # Uninstall and reinstall defender + bitlocker
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "INFO" -ForegroundColor yellow -NoNewLine; 
+Write-Host "] Reinstalling Defender..." -ForegroundColor white
 Uninstall-WindowsFeature Windows-Defender | Out-Null
 Install-WindowsFeature Windows-Defender | Out-Null
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+Write-Host "] Windows Defender reinstalled" -ForegroundColor white
 if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Server") {
     # the following features may not exist based on the windows server version
     Install-WindowsFeature -Name Windows-Defender-GUI,Windows-Defender-Features | Out-Null
@@ -359,9 +386,6 @@ if ((Get-CimInstance -Class Win32_OperatingSystem).Caption -match "Windows Serve
     Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
     Write-Host "] BitLocker installed" -ForegroundColor white
 }
-Write-Host "[" -ForegroundColor white -NoNewLine; 
-Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
-Write-Host "] Windows Defender reinstalled" -ForegroundColor white
 
 # Server Core Tooling
 if ((Test-Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion") -and (Get-ItemProperty -Path "HKLM:\Software\Microsoft\Windows NT\CurrentVersion" | Select-Object -ExpandProperty "InstallationType") -eq "Server Core") {
@@ -462,7 +486,10 @@ if (Get-CimInstance -ClassName Win32_OperatingSystem | Select-Object Caption -ma
 # Service-specific tooling
 if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { # DC detection
     # RSAT tooling (AD management tools + DNS management)
-    Install-WindowsFeature -Name RSAT-AD-Tools,RSAT-DNS-Server,GPMC
+    Install-WindowsFeature -Name RSAT-AD-Tools,RSAT-DNS-Server,GPMC | Out-Null
+    Write-Host "[" -ForegroundColor white -NoNewLine; 
+    Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+    Write-Host "] Installed AD/DNS management tools" -ForegroundColor white
     # Domain, Domain Controller, and admin template GPOs 
     $ghSources[1].Endpoint += @(
         "CCDC-RIT/Hivestorm/main/Windows/gpos/{78CE52B4-D6E0-41F6-BBCE-4990E5BF9D9A}.zip",
@@ -473,7 +500,7 @@ if (Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"') { 
     $gistSources[0].Endpoint += "mubix/fd0c89ec021f70023695/raw/02e3f0df13aa86da41f1587ad798ad3c5e7b3711/Reset-KrbtgtKeyInteractive.ps1" 
     # Pingcastle
     $releaseSources += [PSCustomObject]@{
-        Repo = "netwrix/pingcasle"
+        Repo = "netwrix/pingcastle"
         Keywords = @("PingCastle", "zip")
         Path = ""
     } 
@@ -506,7 +533,9 @@ if (Get-Service -Name CertSvc 2>$null) {
 }
 
 if (Get-Service -Name 'sshd' -ErrorAction SilentlyContinue) {
-    $ghSources[0].Endpoint += "/PowerShell/openssh-portable/refs/heads/latestw_all/contrib/win32/openssh/OpenSSHUtils.psm1"
+    $ghSources[0].Endpoint += @(
+        "PowerShell/openssh-portable/refs/heads/latestw_all/contrib/win32/openssh/OpenSSHUtils.psm1"
+    )
 }
 
 New-Item -Path $InputPath -Name "zipped" -ItemType "directory" | Out-Null
@@ -554,8 +583,16 @@ $msiFiles = Get-ChildItem -Path $searchPath -Filter *.msi -Recurse
 foreach ($msi in $msiFiles) {
     Start-Process "msiexec.exe" -ArgumentList "/i `"$($msi.FullName)`" /qn /norestart" -Wait
 }
-& ".\InstallDefenderUISilent.exe" /VERYSILENT
 $bcu = Get-ChildItem -Path $searchPath -Filter *.exe -Recurse | 
     Where-Object { $_.Name -like "*BCU*" }
 & $bcu.FullName /VERYSILENT /NORESTART
+Rename-Item -Path "mb-windows" -NewName "MBSetup.exe"
+& ".\MBSetup.exe" /VERYSILENT /NORESTART
 & ".\ninite.exe"
+& ".\InstallDefenderUISilent.exe" /VERYSILENT
+Write-Host "[" -ForegroundColor white -NoNewLine; 
+Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; 
+Write-Host "] Executed installers" -ForegroundColor white
+Set-Location -Path $InputPath
+
+# Chandi Fortnite
