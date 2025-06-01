@@ -4,8 +4,8 @@ $VerbosePreference = "SilentlyContinue"
 $currentDir = $cmdPath.substring(0, $cmdPath.IndexOf("audit.ps1"))
 $baseDir = $currentDir.Substring(0, $currentDir.IndexOf("scripts"))
 $toolsDir = Join-Path -Path $baseDir -ChildPath 'tools'
-$accesscheckPath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -eq "AccessChk"}).FullName -File | Where-Object { $_.Name -eq "accesschk64.exe"}
-$everythingcliPath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -match "ES-*"}).FullName -File | Where-Object { $_.Name -eq "es.exe"}
+$accesscheckPath = (Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -eq "AccessChk"}).FullName -File | Where-Object { $_.Name -eq "accesschk64.exe"}).FullName
+$everythingcliPath = (Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -match "ES-*"}).FullName -File | Where-Object { $_.Name -eq "es.exe"}).FullName
 $firewallPath = Join-Path -Path $currentDir -ChildPath 'results\firewallaudit.txt'
 $registryPath = Join-Path -Path $currentDir -ChildPath 'results\registryaudit.txt'
 $processPath = Join-Path -Path $currentDir -ChildPath 'results\processaudit.txt'
@@ -32,10 +32,30 @@ if (Get-Service -Name CertSvc 2>$null) {
 }
 
 Function Invoke-Chainsaw {
-    $chainsawpath = Join-Path -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -match "chainsaw*" }) -ChildPath "chainsaw"
-    & (Join-Path -Path $chainsawpath -ChildPath "chainsaw_x86_64-pc-windows-msvc.exe") hunt (Join-Path -Path $env:windir -ChildPath "System32\winevt\Logs") -s (Join-Path -Path $chainsawpath -ChildPath "sigma") -r (Join-Path -Path $chainsawpath -ChildPath "rules") --mapping (Join-Path -Path $chainsawpath -ChildPath "mappings\sigma-event-logs-all.yml") --output (Join-Path -Path $currentDir -ChildPath "results\chainsaw_report.txt") | Out-Null
+    $chainsawDir = Join-Path -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -like "chainsaw*" }).FullName -ChildPath "chainsaw"
+	$chainsawPath = Get-ChildItem -Path $chainsawDir -File | Where-Object { $_.Name -like "chainsaw*windows*" }
+    & $chainsawPath.FullName hunt (Join-Path -Path $env:windir -ChildPath "System32\winevt\Logs") -s (Join-Path -Path $chainsawDir -ChildPath "sigma") -r (Join-Path -Path $chainsawDir -ChildPath "rules") --mapping (Join-Path -Path $chainsawDir -ChildPath "mappings\sigma-event-logs-all.yml") --output (Join-Path -Path $currentDir -ChildPath "results\chainsaw_report.txt") | Out-Null
 }
 Invoke-Chainsaw
+
+# Function Start-PrivescCheck {
+# 	$tempPath = Join-Path -Path $env:TEMP -ChildPath "PrivescCheck_$($env:COMPUTERNAME)"
+# 	$finalPath = Join-Path -Path $currentDir -ChildPath "\results\PrivescCheck_$($env:COMPUTERNAME)"
+# 	$privescpath = Join-Path -Path $currentDir -ChildPath "PrivescCheck.ps1"
+# 	$command = @"
+# 		`". '$privescpath'; Invoke-PrivescCheck -Extended -Report '$tempPath' -Format HTML -Force | Out-Null`"
+# "@
+# 	$shell = New-Object -ComObject "Shell.Application"
+# 	$shell.ShellExecute("powershell.exe", "-NoProfile -WindowStyle Hidden -Command $command", "", "open", 1)
+   
+# 	Copy-Item -Path $tempPath -Destination $finalPath -Force
+# }
+
+Function Start-PrivescCheck {
+    $privescpath = Join-Path -Path $currentDir -ChildPath "PrivescCheck.ps1"
+    $reportPath = Join-Path -Path $currentDir -ChildPath "results\PrivescCheck"
+    . $privescpath; Invoke-PrivescCheck -Extended -Report $reportPath -Format HTML -Force | Out-Null
+}
 
 Function Get-KeysValues {
     param(
@@ -211,10 +231,10 @@ Function Write-ProcessChecks {
 Function Invoke-HollowsHunter {
     Write-Output "----------- Hollows Hunter Results -----------"
     $current = Get-Location
-    $hollowshunterPath = Get-ChildItem -Path $toolsDir -File | Where-Object { $_.Name -match "hollows_hunter*" }
+    $hollowshunterPath = (Get-ChildItem -Path $toolsDir -File | Where-Object { $_.Name -like "hollows_hunter*" }).FullName
     $resultsPath = Join-Path -Path $currentDir -ChildPath "results"
     Set-Location $resultsPath
-    & $hollowshunterPath /dir $artifactsPath /uniqd
+    & $hollowshunterPath.FullName /dir $artifactsPath /uniqd
     Set-Location $current
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited processes using Hollows Hunter, check " -ForegroundColor white -NoNewline; Write-Host $artifactsPath -ForegroundColor Magenta -NoNewline; Write-Host " for any dumps" -ForegroundColor white
 }
@@ -494,7 +514,7 @@ Function Write-EnvironmentVariables {
 
 Function Invoke-CertificatesCheck {
     $sigcheckpath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -eq "Sigcheck"}).FullName -File | Where-Object { $_.Name -eq "sigcheck64.exe" }
-    $output = & $sigcheckpath -accepteula -nobanner -tv * | Out-String
+    $output = & $sigcheckpath.FullName -accepteula -nobanner -tv * | Out-String
     Write-Output $output
 }
 
@@ -503,7 +523,7 @@ Function Invoke-UnsignedFilesCheck {
         $directory
     )
     $sigcheckpath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -eq "Sigcheck"}).FullName -File | Where-Object { $_.Name -eq "sigcheck64.exe" }
-    $output = & $sigcheckpath -accepteula -nobanner -u -e $directory | Out-String
+    $output = & $sigcheckpath.FullName -accepteula -nobanner -u -e $directory | Out-String
     if ($output.Trim() -ne "No matching files were found.") {
         Write-Output $output
     }
@@ -514,7 +534,7 @@ Function Invoke-ADSCheck {
         $directory
     )
     $streamspath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -eq "Streams"}).FullName -File | Where-Object { $_.Name -eq "streams64.exe" }
-    $output = & $streamspath -accepteula -nobanner $directory | Out-String
+    $output = & $streamspath.FullName -accepteula -nobanner $directory | Out-String
     if ($output.Trim() -ne "No files with streams found.") {
         Write-Output $output
     }
@@ -707,12 +727,6 @@ Function Invoke-UnauthorizedFilesCheck {
     Write-Output $phrases
 
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited for unauthorized files" -ForegroundColor White
- }
-
-Function Start-PrivescCheck {
-    $privescpath = Join-Path -Path $currentDir -ChildPath "PrivescCheck.ps1"
-    $reportPath = Join-Path -Path $currentDir -ChildPath "results\PrivescCheck"
-    . $privescpath; Invoke-PrivescCheck -Extended -Report $reportPath -Format HTML -Force | Out-Null
 }
 
 # T1546.007 - Event Triggered Execution: Netsh Helper DLL
@@ -983,11 +997,11 @@ $current = Get-Location
 $resultsPath = Join-Path -Path $currentDir -ChildPath "results"
 # AD tools time
 if ($DC) {
-    $sigcheckpath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -match "PingCastle*"}).FullName -File | Where-Object { $_.Name -eq "PingCastle.exe" }
-    $adalanchePath = Get-ChildItem -Path $toolsDir -File | Where-Object { $_.Name -match "adalanche*" }
+    $pingcastlePath = Get-ChildItem -Path (Get-ChildItem -Path $toolsDir -Directory | Where-Object { $_.Name -like "PingCastle*"}).FullName -File | Where-Object { $_.Name -eq "PingCastle.exe" }
+    $adalanchePath = Get-ChildItem -Path $toolsDir -File | Where-Object { $_.Name -like "adalanche*" }
     Set-Location $resultsPath
-    & $pingcastlePath --healthcheck --carto --datefile | Out-Null
-    & $adalanchePath collect activedirectory | Out-Null
+    & $pingcastlePath.FullName --healthcheck --carto --datefile | Out-Null
+    & $adalanchePath.FullName collect activedirectory | Out-Null
     Set-Location $current
     Write-Host "[" -ForegroundColor white -NoNewLine; Write-Host "SUCCESS" -ForegroundColor green -NoNewLine; Write-Host "] Audited AD with PingCastle" -ForegroundColor white
     

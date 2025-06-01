@@ -77,7 +77,6 @@ if (!(Get-CimInstance -Class Win32_OperatingSystem -Filter 'ProductType = "2"'))
 		} | ConvertTo-Html -Fragment -PreContent "<h3>Active Directory Users and Groups</h3>"
 }
 
-Get-ADUser -Filter * -Properties Name,DisplayName,Enabled,AccountNotDelegated,adminCount,AllowReversiblePasswordEncryption,CannotChangePassword,DoesNotRequirePreAuth,KerberosEncryptionType,PasswordNeverExpires,PasswordNotRequired,TrustedForDelegation,LockedOut,Description
 $NetworkInfo = Get-CimInstance -Class Win32_NetworkAdapterConfiguration -Filter IPEnabled=TRUE | 
 	Select-Object @{n='Name';e={$_.Description}},
 		@{n='MAC Address';e={$_.MACAddress}},
@@ -234,7 +233,7 @@ $WindowsApps = Get-AppxPackage -AllUsers | Where-Object { $_.SignatureKind -ne "
 try {
     winget --version > $null 2>&1 
 	Write-Host "winget packages:" -ForegroundColor Yellow
-	winget list
+	winget list --accept-source-agreements
 } catch {
 	Write-Host "Winget is not installed on this system." -ForegroundColor Yellow
 }
@@ -249,4 +248,4 @@ $Report = ConvertTo-Html -CssUri $CssPath -Body "$PreContent $ComputerName $Doma
 
 $timestamp = Get-Date -Format "yyyy-MM-dd-HHmmss"
 
-$Report | Out-File ".\inventory-$timestamp.html"
+$Report | Out-File "results\inventory-$timestamp.html"
