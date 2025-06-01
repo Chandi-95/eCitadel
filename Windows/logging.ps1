@@ -76,8 +76,8 @@ printSuccessOrError -Name "System Audit Policy Set" -result $result -desiredResu
 
 # TODO: x86 vs x64 sysmon setup
 # Sysmon setup
-[string]$sysmonPath = (Join-Path -Path $rootDir -ChildPath "tools\sys\sm\sysmon64.exe")
-[string]$xmlPath = (Join-Path -Path $scriptDir -ChildPath "\conf\sysmon.xml")
+$sysmonPath = Get-ChildItem -Path (Get-ChildItem -Path (Join-Path -Path $rootDir -ChildPath "tools") -Directory | Where-Object { $_.Name -eq "Sysmon"}).FullName -File | Where-Object { $_.Name -eq "Sysmon64.exe" }
+$xmlPath = Join-Path -Path $scriptDir -ChildPath "\conf\sysmon.xml"
 $result = & $sysmonPath -accepteula -i $xmlPath
 WevtUtil sl "Microsoft-Windows-Sysmon/Operational" /ms:1048576000
 if("The service Sysmon64 is already registered. Uninstall Sysmon before reinstalling." -in $result){
@@ -132,6 +132,9 @@ if (Get-Service -Name CertSvc 2>$null) {
 }
 
 # Compile yara rules
+$yaraDir = Get-ChildItem -Path (Join-Path -Path $rootDir -ChildPath "tools") -Directory | Where-Object { $_.Name -match "yara*"}
+$rules = Get-ChildItem -Path (Join-Path -Path $rootDir -ChildPath "tools") | Where-Object {$_.Name -eq "Windows" -or $_.Name -eq "Multi"} | Get-ChildItem -Depth 1 -File | ForEach-Object {$_.FullName} | Out-String
+$rules = $($rules.Replace("`r`n", " ") -split " ")
 & (Join-Path -Path $yaraDir -ChildPath "yarac64.exe") $rules (Join-Path -Path $yaraDir -ChildPath "compiled.windows")
 
 #Chandi Fortnite
